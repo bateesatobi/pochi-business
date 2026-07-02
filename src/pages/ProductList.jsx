@@ -112,6 +112,8 @@ const ProductList = () => {
     freeDelivery: 'no',
     expectedDeliveryTime: DEFAULT_DELIVERY_TIME,
     bulkTiers: [],
+    availableSizes: [],
+    availableColors: [],
   });
 
   const [pricePreview, setPricePreview] = useState({
@@ -185,6 +187,20 @@ const ProductList = () => {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  const getColorPreview = (color) => {
+    const colorMap = {
+      'White': '#FFFFFF',
+      'Black': '#000000',
+      'Green': '#10B981',
+      'Blue': '#3B82F6',
+      'Yellow': '#F59E0B',
+      'Orange': '#F97316',
+      'Cream': '#FFFDD0',
+      'Grey': '#6B7280'
+    };
+    return colorMap[color] || '#CCCCCC';
+  };
+
   const openDrawer = (mode, product = null) => {
     setDrawerMode(mode);
     setSelectedProduct(product);
@@ -203,10 +219,12 @@ const ProductList = () => {
         freeDelivery: isFreeDelivery(product) ? 'yes' : 'no',
         expectedDeliveryTime: product.expected_delivery_time || DEFAULT_DELIVERY_TIME,
         bulkTiers: product.bulk_tiers || [],
+        availableSizes: product.available_sizes || [],
+        availableColors: product.available_colors || [],
       });
       setProductImages(product.images ? product.images.map(img => img.base64_content) : []);
     } else {
-      setFormData({ name: '', description: '', basePrice: '', categoryId: '', stockQuantity: '', discountPct: '', promoCode: '', minimumOrderQty: '', vatPct: '18', freeDelivery: 'no', expectedDeliveryTime: DEFAULT_DELIVERY_TIME, bulkTiers: [] });
+      setFormData({ name: '', description: '', basePrice: '', categoryId: '', stockQuantity: '', discountPct: '', promoCode: '', minimumOrderQty: '', vatPct: '18', freeDelivery: 'no', expectedDeliveryTime: DEFAULT_DELIVERY_TIME, bulkTiers: [], availableSizes: [], availableColors: [] });
       setProductImages([]);
     }
     setStep(1);
@@ -232,6 +250,8 @@ const ProductList = () => {
         expected_delivery_time: formData.expectedDeliveryTime,
         bulk_tiers: formData.bulkTiers.filter((t) => t.min_quantity && t.discount_pct),
         images: productImages.map((img, idx) => ({ base64_content: img, sort_order: idx })),
+        available_sizes: formData.availableSizes.length > 0 ? formData.availableSizes : null,
+        available_colors: formData.availableColors.length > 0 ? formData.availableColors : null,
       };
 
       if (drawerMode === 'EDIT') {
@@ -543,6 +563,34 @@ const ProductList = () => {
                        <label>Stock Quantity</label>
                        <p>{selectedProduct?.stock_quantity > 0 ? `${selectedProduct.stock_quantity} units available` : 'Out of stock — edit product and set Stock Quantity on step 1'}</p>
                     </div>
+                    {selectedProduct?.available_sizes && selectedProduct.available_sizes.length > 0 && (
+                      <div className="detail-box full">
+                        <label>Available Sizes</label>
+                        <div className="detail-chips-container">
+                          {selectedProduct.available_sizes.map((size, i) => (
+                            <span key={i} className="detail-chip detail-chip-size">
+                              {size}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedProduct?.available_colors && selectedProduct.available_colors.length > 0 && (
+                      <div className="detail-box full">
+                        <label>Available Colors</label>
+                        <div className="detail-chips-container">
+                          {selectedProduct.available_colors.map((color, i) => (
+                            <span key={i} className="detail-chip detail-chip-color">
+                              <span 
+                                className="detail-color-dot" 
+                                style={{ background: getColorPreview(color) }}
+                              />
+                              {color}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                  </div>
               </div>
             ) : step === 1 ? (
@@ -589,6 +637,58 @@ const ProductList = () => {
                         <option value="">Choose a category...</option>
                         {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                       </select>
+                    </div>
+                  </div>
+                  <div className="form-field full">
+                    <label>Product Sizes (optional)</label>
+                    <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                      Select available sizes for this product
+                    </p>
+                    <div className="size-selector-grid">
+                      {['M', 'L', 'XL', 'XXL'].map((size) => (
+                        <button
+                          key={size}
+                          type="button"
+                          className={`size-option ${formData.availableSizes.includes(size) ? 'selected' : ''}`}
+                          onClick={() => setFormData({
+                            ...formData,
+                            availableSizes: formData.availableSizes.includes(size)
+                              ? formData.availableSizes.filter(s => s !== size)
+                              : [...formData.availableSizes, size]
+                          })}
+                        >
+                          <span className="size-label">{size}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="form-field full">
+                    <label>Product Colors (optional)</label>
+                    <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                      Select available colors for this product
+                    </p>
+                    <div className="color-selector-grid">
+                      {['White', 'Black', 'Green', 'Blue', 'Yellow', 'Orange', 'Cream', 'Grey'].map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          className={`color-option ${formData.availableColors.includes(color) ? 'selected' : ''}`}
+                          onClick={() => setFormData({
+                            ...formData,
+                            availableColors: formData.availableColors.includes(color)
+                              ? formData.availableColors.filter(c => c !== color)
+                              : [...formData.availableColors, color]
+                          })}
+                        >
+                          <div className="color-preview-wrapper">
+                            <div 
+                              className="color-preview" 
+                              style={{ background: getColorPreview(color) }}
+                            />
+                          </div>
+                          <span className="color-label">{color}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
