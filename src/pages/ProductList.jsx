@@ -109,6 +109,7 @@ const ProductList = () => {
     promoCode: '',
     minimumOrderQty: '',
     vatPct: '18',
+    condition: 'NEW',
     freeDelivery: 'no',
     expectedDeliveryTime: DEFAULT_DELIVERY_TIME,
     bulkTiers: [],
@@ -216,6 +217,7 @@ const ProductList = () => {
         promoCode: product.promo_code || '',
         minimumOrderQty: product.minimum_order_qty?.toString() || '',
         vatPct: (product.vat ?? 18).toString(),
+        condition: product.condition || 'NEW',
         freeDelivery: isFreeDelivery(product) ? 'yes' : 'no',
         expectedDeliveryTime: product.expected_delivery_time || DEFAULT_DELIVERY_TIME,
         bulkTiers: product.bulk_tiers || [],
@@ -224,7 +226,7 @@ const ProductList = () => {
       });
       setProductImages(product.images ? product.images.map(img => img.base64_content) : []);
     } else {
-      setFormData({ name: '', description: '', basePrice: '', categoryId: '', stockQuantity: '', discountPct: '', promoCode: '', minimumOrderQty: '', vatPct: '18', freeDelivery: 'no', expectedDeliveryTime: DEFAULT_DELIVERY_TIME, bulkTiers: [], availableSizes: [], availableColors: [] });
+      setFormData({ name: '', description: '', basePrice: '', categoryId: '', stockQuantity: '', discountPct: '', promoCode: '', minimumOrderQty: '', vatPct: '18', condition: 'NEW', freeDelivery: 'no', expectedDeliveryTime: DEFAULT_DELIVERY_TIME, bulkTiers: [], availableSizes: [], availableColors: [] });
       setProductImages([]);
     }
     setStep(1);
@@ -245,6 +247,7 @@ const ProductList = () => {
         promo_code: formData.promoCode || null,
         minimum_order_qty: formData.minimumOrderQty ? parseInt(formData.minimumOrderQty, 10) : null,
         vat: formData.vatPct !== '' ? parseFloat(formData.vatPct) : null,
+        condition: formData.condition || 'NEW',
         currency: MERCHANT_PRODUCT_CURRENCY,
         free_delivery: formData.freeDelivery === 'yes',
         expected_delivery_time: formData.expectedDeliveryTime,
@@ -410,6 +413,9 @@ const ProductList = () => {
                 {promo?.badge && (
                   <div className="card-promo-badge">{promo.badge}</div>
                 )}
+                {product.condition === 'USED' && (
+                  <div className="card-condition-badge">Used</div>
+                )}
                 <div className="card-menu-container">
                    <button className="menu-trigger-btn public-card-menu" onClick={(e) => toggleMenu(e, product.sku)}>
                       <MoreVertical size={18} />
@@ -513,6 +519,10 @@ const ProductList = () => {
                     <div className="detail-box">
                        <label>Category</label>
                        <p>{getCategoryName(selectedProduct?.category_id)}</p>
+                    </div>
+                    <div className="detail-box">
+                       <label>Condition</label>
+                       <p>{selectedProduct?.condition === 'USED' ? 'Used' : 'New'}</p>
                     </div>
                     <div className="detail-box full">
                        <label>Description</label>
@@ -638,6 +648,20 @@ const ProductList = () => {
                         {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                       </select>
                     </div>
+                  </div>
+                  <div className="form-field">
+                    <label>Condition</label>
+                    <div className="input-wrapper">
+                      <Tag size={18} className="field-icon" />
+                      <select
+                        value={formData.condition}
+                        onChange={e => setFormData({ ...formData, condition: e.target.value })}
+                      >
+                        <option value="NEW">New</option>
+                        <option value="USED">Used</option>
+                      </select>
+                    </div>
+                    <p className="field-help">Mark used items (e.g. second-hand phones). Shown as a badge on the product card.</p>
                   </div>
                   <div className="form-field full">
                     <label>Product Sizes (optional)</label>

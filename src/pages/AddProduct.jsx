@@ -20,6 +20,7 @@ const AddProduct = () => {
     promoCode: '',
     minimumOrderQty: '',
     vatPct: '18',
+    condition: 'NEW',
     freeDelivery: 'no',
     expectedDeliveryTime: DEFAULT_DELIVERY_TIME,
     bulkTiers: [],
@@ -121,6 +122,7 @@ const AddProduct = () => {
         promo_code: formData.promoCode || null,
         minimum_order_qty: formData.minimumOrderQty ? parseInt(formData.minimumOrderQty, 10) : null,
         vat: formData.vatPct !== '' ? parseFloat(formData.vatPct) : null,
+        condition: formData.condition || 'NEW',
         free_delivery: formData.freeDelivery === 'yes',
         expected_delivery_time: formData.expectedDeliveryTime,
         bulk_tiers: formData.bulkTiers.filter((t) => t.min_quantity && t.discount_pct),
@@ -209,6 +211,17 @@ const AddProduct = () => {
             <input type="number" name="stockQuantity" min="0" value={formData.stockQuantity} onChange={handleChange} placeholder="e.g. 100" required />
             <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
               Required for Pochi app availability. 0 = Out of Stock.
+            </p>
+          </div>
+
+          <div className="form-group">
+            <label>Condition</label>
+            <select name="condition" value={formData.condition} onChange={handleChange} required>
+              <option value="NEW">New</option>
+              <option value="USED">Used</option>
+            </select>
+            <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              Mark used items (e.g. second-hand phones). Shown as a badge on the product card.
             </p>
           </div>
 
