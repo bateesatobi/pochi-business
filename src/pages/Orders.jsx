@@ -1,18 +1,34 @@
-import React, { useState } from 'react';
-import { API_BASE } from '../config/api';
-import { useOrders } from '../hooks/queries';
-import { 
-  ShoppingCart, Clock, CheckCircle, Truck, AlertCircle, 
-  ChevronRight, X, User, Calendar, DollarSign, Package, Eye,
-  BarChart3, ArrowUpRight, TrendingUp, TrendingDown, Search,
-  ChevronLeft, Filter, Info
+import React, { useEffect, useState } from 'react';
+import {
+  useOrders,
+  useUpdateOrderStatus,
+  useUpdateOrderTracking,
+} from '../hooks/queries';
+import {
+  ShoppingCart, Clock, CheckCircle, Truck, AlertCircle,
+  ChevronRight, X, User, Calendar, Package, Eye,
+  TrendingUp, Search, ChevronLeft, Info, Link2,
 } from 'lucide-react';
+import { toast, alertError } from '../utils/swal';
 import './Orders.css';
 
+const shortId = (id) => (id ? String(id).slice(0, 8) : '—');
+const orderAmount = (order) => order?.subtotal ?? order?.total ?? 0;
+const hasParentRef = (order) =>
+  order?.parent_order_id && String(order.parent_order_id) !== String(order.id);
+
 const Orders = () => {
-  const { data: orders = [] } = useOrders();
+  const { data: orders = [], refetch } = useOrders();
+  const updateTracking = useUpdateOrderTracking();
+  const updateStatus = useUpdateOrderStatus();
+
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [trackingForm, setTrackingForm] = useState({
+    tracking_number: '',
+    carrier: '',
+    estimated_delivery_at: '',
+  });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -22,25 +38,42 @@ const Orders = () => {
 
   const openOrderDetails = (order) => {
     setSelectedOrder(order);
+    setTrackingForm({
+      tracking_number: order.tracking_number || '',
+      carrier: order.carrier || '',
+      estimated_delivery_at: order.estimated_delivery_at
+        ? String(order.estimated_delivery_at).slice(0, 10)
+        : '',
+    });
     setIsDrawerOpen(true);
   };
+
+  useEffect(() => {
+    if (!selectedOrder?.id || !orders.length) return;
+    const fresh = orders.find((o) => String(o.id) === String(selectedOrder.id));
+    if (fresh) setSelectedOrder(fresh);
+  }, [orders, selectedOrder?.id]);
 
   const getStatusIcon = (status) => {
     switch (status) {
       case 'PENDING': return <Clock size={16} />;
       case 'PAID': return <CheckCircle size={16} />;
       case 'FULFILLED': return <Truck size={16} />;
+      case 'DELIVERED': return <CheckCircle size={16} />;
       case 'CANCELLED': return <X size={16} />;
+      case 'REFUNDED': return <AlertCircle size={16} />;
       default: return <AlertCircle size={16} />;
     }
   };
 
-  const filteredOrders = orders.filter(order => {
+  const filteredOrders = orders.filter((order) => {
     const orderDate = new Date(order.created_at);
-    const matchesSearch = 
-      order.id?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      order.user_id?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+    const q = searchTerm.toLowerCase();
+    const matchesSearch =
+      String(order.id || '').toLowerCase().includes(q) ||
+      String(order.user_id || '').toLowerCase().includes(q) ||
+      String(order.parent_order_id || '').toLowerCase().includes(q);
+
     const matchesStart = startDate ? orderDate >= new Date(startDate) : true;
     const matchesEnd = endDate ? orderDate <= new Date(endDate + 'T23:59:59') : true;
 
@@ -55,20 +88,57 @@ const Orders = () => {
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   const totalRevenue = filteredOrders
-    .filter(o => o.status === 'PAID' || o.status === 'FULFILLED')
-    .reduce((sum, o) => sum + (o.total || 0), 0);
+    .filter((o) => ['PAID', 'FULFILLED', 'DELIVERED'].includes(o.status))
+    .reduce((sum, o) => sum + orderAmount(o), 0);
 
-  const pendingOrdersCount = filteredOrders.filter(o => o.status === 'PENDING').length;
-  const cancelledOrdersCount = filteredOrders.filter(o => o.status === 'CANCELLED').length;
+  const pendingOrdersCount = filteredOrders.filter((o) => o.status === 'PENDING').length;
+  const cancelledOrdersCount = filteredOrders.filter((o) => o.status === 'CANCELLED').length;
 
+  const handleSaveTracking = async () => {
+    if (!selectedOrder?.id) return;
+    try {
+      const payload = {
+        tracking_number: trackingForm.tracking_number.trim() || null,
+        carrier: trackingForm.carrier.trim() || null,
+        estimated_delivery_at: trackingForm.estimated_delivery_at
+          ? new Date(trackingForm.estimated_delivery_at).toISOString()
+          : null,
+      };
+      const data = await updateTracking.mutateAsync({ orderId: selectedOrder.id, payload });
+      toast('Tracking saved', 'Shipment details updated for your sub-order.');
+      setSelectedOrder((prev) => (prev ? {
+        ...prev,
+        tracking_number: data.tracking_number ?? payload.tracking_number,
+        carrier: data.carrier ?? payload.carrier,
+        estimated_delivery_at: data.estimated_delivery_at ?? payload.estimated_delivery_at,
+      } : prev));
+      refetch();
+    } catch (err) {
+      alertError('Could not save tracking', err.response?.data?.detail || 'Please try again.');
+    }
+  };
 
+  const handleStatusUpdate = async (status) => {
+    if (!selectedOrder?.id) return;
+    try {
+      await updateStatus.mutateAsync({ orderId: selectedOrder.id, status });
+      toast('Status updated', `Sub-order marked as ${status}.`);
+      setSelectedOrder((prev) => (prev ? { ...prev, status } : prev));
+      refetch();
+    } catch (err) {
+      alertError('Status update failed', err.response?.data?.detail || 'Please try again.');
+    }
+  };
+
+  const canMarkFulfilled = selectedOrder?.status === 'PAID';
+  const canMarkDelivered = selectedOrder?.status === 'FULFILLED';
 
   return (
     <div className="orders-container animate-fade">
       <div className="page-header-refined">
         <div className="title-group">
           <h1>Orders & Fulfillment</h1>
-          <p>Analyzing {filteredOrders.length} transaction records.</p>
+          <p>Managing {filteredOrders.length} vendor sub-order{filteredOrders.length === 1 ? '' : 's'}.</p>
         </div>
       </div>
 
@@ -99,25 +169,25 @@ const Orders = () => {
       <div className="inventory-controls glass">
         <div className="search-box-refined">
           <Search size={18} className="search-icon" />
-          <input 
-            type="text" 
-            placeholder="Search Order ID or Customer..." 
+          <input
+            type="text"
+            placeholder="Search sub-order, parent order, or customer..."
             value={searchTerm}
-            onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
           />
         </div>
         <div className="date-filter-group">
           <div className="date-input-wrapper">
-             <Calendar size={16} />
-             <input type="date" value={startDate} onChange={(e) => {setStartDate(e.target.value); setCurrentPage(1);}} />
+            <Calendar size={16} />
+            <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }} />
           </div>
           <span className="date-separator">to</span>
           <div className="date-input-wrapper">
-             <Calendar size={16} />
-             <input type="date" value={endDate} onChange={(e) => {setEndDate(e.target.value); setCurrentPage(1);}} />
+            <Calendar size={16} />
+            <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }} />
           </div>
           {(startDate || endDate || searchTerm) && (
-            <button className="clear-filters-btn" onClick={() => {setStartDate(''); setEndDate(''); setSearchTerm('');}}>Reset</button>
+            <button className="clear-filters-btn" onClick={() => { setStartDate(''); setEndDate(''); setSearchTerm(''); }}>Reset</button>
           )}
         </div>
       </div>
@@ -126,43 +196,49 @@ const Orders = () => {
         <table className="orders-table-refined">
           <thead>
             <tr>
-              <th>Order ID</th>
+              <th>Sub-Order</th>
+              <th>Parent</th>
               <th>Customer</th>
               <th>Date</th>
-              <th>Amount</th>
+              <th>Your Total</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {currentOrders.length === 0 ? (
-              <tr><td colSpan="6" className="empty-row">No records found.</td></tr>
+              <tr><td colSpan="7" className="empty-row">No records found.</td></tr>
             ) : (
-              currentOrders.map(order => (
+              currentOrders.map((order) => (
                 <tr key={order.id} onClick={() => openOrderDetails(order)} className="clickable-row">
-                  <td><span className="order-id-txt">#{order.id?.toString().slice(0, 8)}</span></td>
+                  <td><span className="order-id-txt">#{shortId(order.id)}</span></td>
+                  <td>
+                    <span className="order-id-txt muted-id">
+                      {hasParentRef(order) ? `#${shortId(order.parent_order_id)}` : '—'}
+                    </span>
+                  </td>
                   <td>
                     <div className="customer-cell-content">
-                       <div className="cust-avatar"><User size={14} /></div>
-                       <span>{order.user_id?.toString().slice(0, 8) || 'Unknown'}</span>
+                      <div className="cust-avatar"><User size={14} /></div>
+                      <span>{shortId(order.user_id)}</span>
                     </div>
                   </td>
                   <td><span className="date-txt">{order.created_at ? new Date(order.created_at).toLocaleDateString() : 'N/A'}</span></td>
                   <td>
                     <div className="amt-cell-content">
-                       <span className="amt-val">{order.total?.toLocaleString()}</span>
-                       <span className="amt-cur">{order.currency || 'UGX'}</span>
+                      <span className="amt-val">{orderAmount(order).toLocaleString()}</span>
+                      <span className="amt-cur">{order.currency || 'UGX'}</span>
                     </div>
                   </td>
                   <td>
-                    <span className={`order-status-badge ${order.status.toLowerCase()}`}>
+                    <span className={`order-status-badge ${order.status?.toLowerCase()}`}>
                       {getStatusIcon(order.status)}
                       {order.status}
                     </span>
                   </td>
                   <td>
-                    <button className="view-details-btn-mini" onClick={(e) => {e.stopPropagation(); openOrderDetails(order);}}>
-                       <Eye size={16} /> Details
+                    <button className="view-details-btn-mini" onClick={(e) => { e.stopPropagation(); openOrderDetails(order); }}>
+                      <Eye size={16} /> Details
                     </button>
                   </td>
                 </tr>
@@ -173,79 +249,158 @@ const Orders = () => {
 
         {totalPages > 1 && (
           <div className="pagination-bar">
-             <div className="pagination-info">Showing {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredOrders.length)} of {filteredOrders.length}</div>
-             <div className="pagination-btns">
-                <button disabled={currentPage === 1} onClick={() => paginate(currentPage - 1)} className="p-btn"><ChevronLeft size={18} /></button>
-                {[...Array(totalPages)].map((_, i) => (
-                  <button key={i+1} onClick={() => paginate(i+1)} className={`p-btn ${currentPage === i+1 ? 'active' : ''}`}>{i+1}</button>
-                ))}
-                <button disabled={currentPage === totalPages} onClick={() => paginate(currentPage + 1)} className="p-btn"><ChevronRight size={18} /></button>
-             </div>
+            <div className="pagination-info">Showing {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredOrders.length)} of {filteredOrders.length}</div>
+            <div className="pagination-btns">
+              <button disabled={currentPage === 1} onClick={() => paginate(currentPage - 1)} className="p-btn"><ChevronLeft size={18} /></button>
+              {[...Array(totalPages)].map((_, i) => (
+                <button key={i + 1} onClick={() => paginate(i + 1)} className={`p-btn ${currentPage === i + 1 ? 'active' : ''}`}>{i + 1}</button>
+              ))}
+              <button disabled={currentPage === totalPages} onClick={() => paginate(currentPage + 1)} className="p-btn"><ChevronRight size={18} /></button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Expert Drawer */}
       <div className={`expert-drawer-overlay ${isDrawerOpen ? 'open' : ''}`} onClick={() => setIsDrawerOpen(false)}>
-        <div className="expert-drawer" onClick={e => e.stopPropagation()}>
-           <div className="drawer-nav">
-              <div className="nav-header">
-                <div className="icon-badge"><ShoppingCart size={24} /></div>
-                <div className="text">
-                  <h2>Order Details</h2>
-                  <p>#{selectedOrder?.id?.toString().slice(0, 8)}</p>
-                </div>
+        <div className="expert-drawer" onClick={(e) => e.stopPropagation()}>
+          <div className="drawer-nav">
+            <div className="nav-header">
+              <div className="icon-badge"><ShoppingCart size={24} /></div>
+              <div className="text">
+                <h2>Sub-Order Details</h2>
+                <p>#{shortId(selectedOrder?.id)}</p>
               </div>
-              <button className="drawer-close-btn" onClick={() => setIsDrawerOpen(false)}><X /></button>
-           </div>
+            </div>
+            <button className="drawer-close-btn" onClick={() => setIsDrawerOpen(false)}><X /></button>
+          </div>
 
-           <div className="drawer-main">
-              {selectedOrder && (
-                <div className="order-details-panel animate-fade">
-                   <div className="details-section glass">
-                      <div className="section-title"><Info size={16} /> Summary Information</div>
-                      <div className="info-grid">
-                         <div className="info-item">
-                            <label>Status</label>
-                            <span className={`status-tag-big ${selectedOrder.status.toLowerCase()}`}>
-                               {selectedOrder.status}
-                            </span>
-                         </div>
-                         <div className="info-item">
-                            <label>Order Date</label>
-                            <span className="val">{new Date(selectedOrder.created_at).toLocaleString()}</span>
-                         </div>
-                         <div className="info-item">
-                            <label>Customer ID</label>
-                            <span className="val">{selectedOrder.user_id}</span>
-                         </div>
+          <div className="drawer-main">
+            {selectedOrder && (
+              <div className="order-details-panel animate-fade">
+                <div className="details-section glass">
+                  <div className="section-title"><Info size={16} /> Summary</div>
+                  <div className="info-grid">
+                    <div className="info-item">
+                      <label>Status</label>
+                      <span className={`status-tag-big ${selectedOrder.status?.toLowerCase()}`}>
+                        {selectedOrder.status}
+                      </span>
+                    </div>
+                    <div className="info-item">
+                      <label>Sub-Order ID</label>
+                      <span className="val mono">{selectedOrder.id}</span>
+                    </div>
+                    {hasParentRef(selectedOrder) && (
+                      <div className="info-item">
+                        <label>Parent Order</label>
+                        <span className="val mono"><Link2 size={12} /> {selectedOrder.parent_order_id}</span>
                       </div>
-                   </div>
-
-                   <div className="details-section glass">
-                      <div className="section-title"><Package size={16} /> Order Items</div>
-                      <div className="order-items-list">
-                         {selectedOrder.items?.map((item, idx) => (
-                           <div key={idx} className="order-item-row">
-                              <div className="item-main">
-                                 <div className="item-icon"><Package size={14} /></div>
-                                 <div className="item-text">
-                                    <strong>{item.sku}</strong>
-                                    <span>Quantity: {item.quantity}</span>
-                                 </div>
-                              </div>
-                              <div className="item-price">UGX {(item.unit_price * item.quantity).toLocaleString()}</div>
-                           </div>
-                         ))}
-                      </div>
-                      <div className="order-total-footer">
-                         <span>Grand Total</span>
-                         <span className="total-val">UGX {selectedOrder.total?.toLocaleString()}</span>
-                      </div>
-                   </div>
+                    )}
+                    <div className="info-item">
+                      <label>Order Date</label>
+                      <span className="val">{new Date(selectedOrder.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="info-item">
+                      <label>Customer ID</label>
+                      <span className="val">{selectedOrder.user_id}</span>
+                    </div>
+                  </div>
                 </div>
-              )}
-           </div>
+
+                <div className="details-section glass">
+                  <div className="section-title"><Package size={16} /> Your Items</div>
+                  <div className="order-items-list">
+                    {selectedOrder.items?.map((item, idx) => (
+                      <div key={idx} className="order-item-row">
+                        <div className="item-main">
+                          <div className="item-icon"><Package size={14} /></div>
+                          <div className="item-text">
+                            <strong>{item.product_name || item.sku}</strong>
+                            <span>{item.sku} · Qty: {item.quantity}</span>
+                          </div>
+                        </div>
+                        <div className="item-price">
+                          UGX {((item.unit_price * item.quantity) - (item.discount_applied || 0)).toLocaleString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="order-total-footer">
+                    <span>Your Subtotal</span>
+                    <span className="total-val">UGX {orderAmount(selectedOrder).toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div className="details-section glass">
+                  <div className="section-title"><Truck size={16} /> Shipment Tracking</div>
+                  <div className="tracking-form-grid">
+                    <label>
+                      Tracking number
+                      <input
+                        type="text"
+                        value={trackingForm.tracking_number}
+                        onChange={(e) => setTrackingForm((f) => ({ ...f, tracking_number: e.target.value }))}
+                        placeholder="e.g. TRK-12345"
+                      />
+                    </label>
+                    <label>
+                      Carrier
+                      <input
+                        type="text"
+                        value={trackingForm.carrier}
+                        onChange={(e) => setTrackingForm((f) => ({ ...f, carrier: e.target.value }))}
+                        placeholder="e.g. DHL, Posta Uganda"
+                      />
+                    </label>
+                    <label>
+                      Estimated delivery
+                      <input
+                        type="date"
+                        value={trackingForm.estimated_delivery_at}
+                        onChange={(e) => setTrackingForm((f) => ({ ...f, estimated_delivery_at: e.target.value }))}
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-tracking-save"
+                    disabled={updateTracking.isPending}
+                    onClick={handleSaveTracking}
+                  >
+                    {updateTracking.isPending ? 'Saving...' : 'Save tracking'}
+                  </button>
+                </div>
+
+                {(canMarkFulfilled || canMarkDelivered) && (
+                  <div className="details-section glass">
+                    <div className="section-title"><CheckCircle size={16} /> Fulfillment Actions</div>
+                    <div className="fulfillment-actions">
+                      {canMarkFulfilled && (
+                        <button
+                          type="button"
+                          className="btn-status-action fulfilled"
+                          disabled={updateStatus.isPending}
+                          onClick={() => handleStatusUpdate('FULFILLED')}
+                        >
+                          Mark Fulfilled
+                        </button>
+                      )}
+                      {canMarkDelivered && (
+                        <button
+                          type="button"
+                          className="btn-status-action delivered"
+                          disabled={updateStatus.isPending}
+                          onClick={() => handleStatusUpdate('DELIVERED')}
+                        >
+                          Mark Delivered
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

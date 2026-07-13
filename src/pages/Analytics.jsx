@@ -8,6 +8,7 @@ const Analytics = () => {
   const { data: stats } = useBusinessStats();
 
   const basic = stats?.basic_stats || {};
+  const recentActivity = stats?.recent_activity || [];
   const totalRevenue = basic.total_revenue || 0;
   const totalOrders = basic.total_orders || 0;
   const activeProducts = basic.active_products || 0;
@@ -115,6 +116,29 @@ const Analytics = () => {
             </div>
           </div>
         </div>
+        {recentActivity.length > 0 && (
+          <div className="insight-card glass" style={{ marginTop: 20 }}>
+            <div className="insight-icon indigo"><ShoppingBag size={22} /></div>
+            <div className="insight-body" style={{ width: '100%' }}>
+              <h3>Recent Sub-Orders</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                {recentActivity.slice(0, 5).map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, borderBottom: '1px dashed var(--border-color)', paddingBottom: 8 }}>
+                    <span>
+                      Sub #{String(item.id || '').slice(0, 8)}
+                      {item.parent_order_id && item.parent_order_id !== item.id && (
+                        <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>
+                          Parent #{String(item.parent_order_id).slice(0, 8)}
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ fontWeight: 700 }}>UGX {Number(item.amount || 0).toLocaleString()} · {item.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

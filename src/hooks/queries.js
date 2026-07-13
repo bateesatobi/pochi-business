@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { queryKeys } from '../lib/queryKeys';
 import { STALE } from '../lib/queryClient';
@@ -16,6 +16,28 @@ export function useOrders() {
     queryKey: queryKeys.orders,
     queryFn: () => api.get('/orders/business').then((r) => r.data),
     staleTime: STALE.MEDIUM,
+  });
+}
+
+export function useUpdateOrderTracking() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, payload }) =>
+      api.patch(`/orders/${orderId}/tracking`, payload).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders });
+    },
+  });
+}
+
+export function useUpdateOrderStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, status }) =>
+      api.patch(`/orders/${orderId}/status`, null, { params: { status } }).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders });
+    },
   });
 }
 
