@@ -102,8 +102,10 @@ const ProductList = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    brand: '',
     basePrice: '',
     categoryId: '',
+    saleChannel: 'RETAIL',
     stockQuantity: '',
     discountPct: '',
     promoCode: '',
@@ -135,10 +137,47 @@ const ProductList = () => {
   const [productImages, setProductImages] = useState([]);
   const navigate = useNavigate();
 
-  const selectedCategory = categories.find((c) => String(c.id) === String(formData.categoryId));
-  const categoryChannel = selectedCategory?.channel || 'BOTH';
-  const showRetailFields = categoryChannel === 'RETAIL' || categoryChannel === 'BOTH';
-  const showWholesaleFields = categoryChannel === 'WHOLESALE' || categoryChannel === 'BOTH';
+  const showRetailFields = formData.saleChannel === 'RETAIL';
+  const showWholesaleFields = formData.saleChannel === 'WHOLESALE';
+
+  const emptyForm = () => ({
+    name: '',
+    description: '',
+    brand: '',
+    basePrice: '',
+    categoryId: '',
+    saleChannel: 'RETAIL',
+    stockQuantity: '',
+    discountPct: '',
+    promoCode: '',
+    minimumOrderQty: '',
+    vatPct: '18',
+    condition: 'NEW',
+    freeDelivery: 'no',
+    expectedDeliveryTime: DEFAULT_DELIVERY_TIME,
+    bulkTiers: [],
+    availableSizes: [],
+    availableColors: [],
+  });
+
+  const setSaleChannel = (channel) => {
+    setFormData((prev) => {
+      if (channel === 'WHOLESALE') {
+        return {
+          ...prev,
+          saleChannel: 'WHOLESALE',
+          discountPct: '',
+          bulkTiers: prev.bulkTiers?.length ? prev.bulkTiers : [{ min_quantity: '', discount_pct: '' }],
+        };
+      }
+      return {
+        ...prev,
+        saleChannel: 'RETAIL',
+        minimumOrderQty: '',
+        bulkTiers: [],
+      };
+    });
+  };
 
   const fetchPricePreview = async (basePrice, vatPct, viewerCcy) => {
     const price = parseFloat(basePrice);
@@ -207,11 +246,14 @@ const ProductList = () => {
     setSelectedProduct(product);
     setViewImageIndex(0);
     if (product) {
+      const channel = (product.sale_channel || 'RETAIL').toUpperCase() === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL';
       setFormData({
         name: product.name,
         description: product.description || '',
+        brand: product.brand || '',
         basePrice: product.base_price.toString(),
         categoryId: product.category_id || '',
+        saleChannel: channel,
         stockQuantity: product.stock_quantity?.toString() || '',
         discountPct: product.discount_pct?.toString() || '',
         promoCode: product.promo_code || '',
@@ -226,7 +268,7 @@ const ProductList = () => {
       });
       setProductImages(product.images ? product.images.map(img => img.base64_content) : []);
     } else {
-      setFormData({ name: '', description: '', basePrice: '', categoryId: '', stockQuantity: '', discountPct: '', promoCode: '', minimumOrderQty: '', vatPct: '18', condition: 'NEW', freeDelivery: 'no', expectedDeliveryTime: DEFAULT_DELIVERY_TIME, bulkTiers: [], availableSizes: [], availableColors: [] });
+      setFormData(emptyForm());
       setProductImages([]);
     }
     setStep(1);
@@ -237,21 +279,28 @@ const ProductList = () => {
   const handlePublish = async () => {
     try {
       setIsPublishing(true);
+      const isWholesale = formData.saleChannel === 'WHOLESALE';
       const payload = {
         name: formData.name,
         description: formData.description,
+        brand: formData.brand?.trim() || null,
         base_price: parseFloat(formData.basePrice),
         category_id: formData.categoryId || null,
+        sale_channel: formData.saleChannel,
         stock_quantity: parseInt(formData.stockQuantity || '0', 10),
-        discount_pct: formData.discountPct ? parseFloat(formData.discountPct) : null,
+        discount_pct: !isWholesale && formData.discountPct ? parseFloat(formData.discountPct) : null,
         promo_code: formData.promoCode || null,
-        minimum_order_qty: formData.minimumOrderQty ? parseInt(formData.minimumOrderQty, 10) : null,
+        minimum_order_qty: isWholesale && formData.minimumOrderQty
+          ? parseInt(formData.minimumOrderQty, 10)
+          : null,
         vat: formData.vatPct !== '' ? parseFloat(formData.vatPct) : null,
         condition: formData.condition || 'NEW',
         currency: MERCHANT_PRODUCT_CURRENCY,
         free_delivery: formData.freeDelivery === 'yes',
         expected_delivery_time: formData.expectedDeliveryTime,
-        bulk_tiers: formData.bulkTiers.filter((t) => t.min_quantity && t.discount_pct),
+        bulk_tiers: isWholesale
+          ? formData.bulkTiers.filter((t) => t.min_quantity && t.discount_pct !== '' && t.discount_pct != null)
+          : [],
         images: productImages.map((img, idx) => ({ base64_content: img, sort_order: idx })),
         available_sizes: formData.availableSizes.length > 0 ? formData.availableSizes : null,
         available_colors: formData.availableColors.length > 0 ? formData.availableColors : null,
@@ -432,6 +481,14 @@ const ProductList = () => {
               </div>
               <div className="card-content-public">
                 <h3 className="card-title-public" title={product.name}>{product.name}</h3>
+                {(product.brand || product.sale_channel) && (
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 6px' }}>
+                    {[
+                      product.brand,
+                      (product.sale_channel || 'RETAIL').toUpperCase() === 'WHOLESALE' ? 'Wholesale' : 'Retail',
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                )}
                 <PublicCardPrice
                   display={display}
                   size={display.showBoth ? 'local' : 'usd'}
@@ -517,6 +574,14 @@ const ProductList = () => {
                        <p>{selectedProduct?.name}</p>
                     </div>
                     <div className="detail-box">
+                       <label>Brand</label>
+                       <p>{selectedProduct?.brand || '—'}</p>
+                    </div>
+                    <div className="detail-box">
+                       <label>Sale Type</label>
+                       <p>{(selectedProduct?.sale_channel || 'RETAIL').toUpperCase() === 'WHOLESALE' ? 'Wholesale' : 'Retail'}</p>
+                    </div>
+                    <div className="detail-box">
                        <label>Category</label>
                        <p>{getCategoryName(selectedProduct?.category_id)}</p>
                     </div>
@@ -524,6 +589,51 @@ const ProductList = () => {
                        <label>Condition</label>
                        <p>{selectedProduct?.condition === 'USED' ? 'Used' : 'New'}</p>
                     </div>
+                    <div className="detail-box">
+                       <label>Stock Quantity</label>
+                       <p>{selectedProduct?.stock_quantity > 0 ? `${selectedProduct.stock_quantity} units available` : 'Out of stock — edit product and set Stock Quantity on step 1'}</p>
+                    </div>
+                    {(selectedProduct?.sale_channel || 'RETAIL').toUpperCase() === 'WHOLESALE' ? (
+                      <>
+                        <div className="detail-box">
+                          <label>Minimum Order Qty (MOQ)</label>
+                          <p>{selectedProduct?.minimum_order_qty != null ? selectedProduct.minimum_order_qty : '—'}</p>
+                        </div>
+                        <div className="detail-box">
+                          <label>Promo Code</label>
+                          <p>{selectedProduct?.promo_code || '—'}</p>
+                        </div>
+                        {(selectedProduct?.bulk_tiers || []).length > 0 && (
+                          <div className="detail-box full">
+                            <label>Bulk Pricing Tiers</label>
+                            <div className="detail-chips-container" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+                              {selectedProduct.bulk_tiers.map((tier, i) => (
+                                <span key={tier.id || i} className="detail-chip" style={{ justifyContent: 'space-between' }}>
+                                  <span>{tier.min_quantity}+ units</span>
+                                  <strong>{tier.discount_pct}% off</strong>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="detail-box">
+                          <label>Retail Discount</label>
+                          <p>
+                            {selectedProduct?.effective_discount_pct != null || selectedProduct?.discount_pct != null
+                              ? `${selectedProduct.effective_discount_pct ?? selectedProduct.discount_pct}%`
+                              : '—'}
+                            {selectedProduct?.promotion_badge ? ` · ${selectedProduct.promotion_badge}` : ''}
+                          </p>
+                        </div>
+                        <div className="detail-box">
+                          <label>Promo Code</label>
+                          <p>{selectedProduct?.promo_code || '—'}</p>
+                        </div>
+                      </>
+                    )}
                     <div className="detail-box full">
                        <label>Description</label>
                        <p>{selectedProduct?.description || 'No description provided.'}</p>
@@ -565,13 +675,11 @@ const ProductList = () => {
                        })()}
                        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
                          Base: {formatMoney(selectedProduct?.base_price, MERCHANT_PRODUCT_CURRENCY)}
+                         {selectedProduct?.listing_price != null && ` · Listing: ${formatMoney(selectedProduct.listing_price, MERCHANT_PRODUCT_CURRENCY)}`}
+                         {selectedProduct?.discounted_listing_price != null && ` · Sale: ${formatMoney(selectedProduct.discounted_listing_price, MERCHANT_PRODUCT_CURRENCY)}`}
                          {selectedProduct?.platform_fee != null && ` + ${selectedProduct.platform_fee}% platform fee`}
                          {selectedProduct?.vat != null && ` + ${selectedProduct.vat}% tax`}
                        </p>
-                    </div>
-                    <div className="detail-box">
-                       <label>Stock Quantity</label>
-                       <p>{selectedProduct?.stock_quantity > 0 ? `${selectedProduct.stock_quantity} units available` : 'Out of stock — edit product and set Stock Quantity on step 1'}</p>
                     </div>
                     {selectedProduct?.available_sizes && selectedProduct.available_sizes.length > 0 && (
                       <div className="detail-box full">
@@ -621,6 +729,42 @@ const ProductList = () => {
                       />
                     </div>
                     <p className="field-help">Keep it short and descriptive (max 60 chars).</p>
+                  </div>
+                  <div className="form-field">
+                    <label>Brand</label>
+                    <div className="input-wrapper">
+                      <Tag size={18} className="field-icon" />
+                      <input
+                        value={formData.brand}
+                        onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                        placeholder="e.g. Samsung, Nike"
+                      />
+                    </div>
+                    <p className="field-help">Manufacturer or label shown to buyers.</p>
+                  </div>
+                  <div className="form-field">
+                    <label>Sale Type</label>
+                    <div className="sale-channel-toggle" role="group" aria-label="Sale type">
+                      <button
+                        type="button"
+                        className={`sale-channel-btn ${formData.saleChannel === 'RETAIL' ? 'active' : ''}`}
+                        onClick={() => setSaleChannel('RETAIL')}
+                      >
+                        Retail
+                      </button>
+                      <button
+                        type="button"
+                        className={`sale-channel-btn ${formData.saleChannel === 'WHOLESALE' ? 'active' : ''}`}
+                        onClick={() => setSaleChannel('WHOLESALE')}
+                      >
+                        Wholesale
+                      </button>
+                    </div>
+                    <p className="field-help">
+                      {showRetailFields
+                        ? 'Retail: set a discount % and optional promo code.'
+                        : 'Wholesale: set MOQ and bulk quantity tiers.'}
+                    </p>
                   </div>
                   <div className="form-field">
                     <label>Stock Quantity <HelpCircle size={14} className="label-tip" /></label>
@@ -836,79 +980,159 @@ const ProductList = () => {
                     </p>
                   </div>
                   {showRetailFields && (
-                    <>
-                      <div className="form-field">
-                        <label>Retail Discount (%)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={formData.discountPct}
-                          onChange={(e) => setFormData({ ...formData, discountPct: e.target.value })}
-                        />
+                    <div className="channel-pricing-panel retail">
+                      <div className="channel-pricing-header">
+                        <div className="channel-pricing-icon"><Percent size={18} /></div>
+                        <div>
+                          <h4>Retail pricing</h4>
+                          <p>Discount applies to the public listing price. Promo code is optional.</p>
+                        </div>
                       </div>
-                      <div className="form-field">
-                        <label>Promo Code (optional)</label>
-                        <input
-                          value={formData.promoCode}
-                          onChange={(e) => setFormData({ ...formData, promoCode: e.target.value })}
-                          placeholder="SUMMER10"
-                        />
-                        <p className="field-help">Label for checkout — discount % above sets the price shown on cards.</p>
+                      <div className="channel-pricing-grid">
+                        <div className="form-field">
+                          <label>Retail Discount (%)</label>
+                          <div className="input-wrapper">
+                            <Percent size={18} className="field-icon" />
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={formData.discountPct}
+                              onChange={(e) => setFormData({ ...formData, discountPct: e.target.value })}
+                              placeholder="e.g. 10"
+                            />
+                          </div>
+                        </div>
+                        <div className="form-field">
+                          <label>Promo Code (optional)</label>
+                          <div className="input-wrapper">
+                            <Tag size={18} className="field-icon" />
+                            <input
+                              value={formData.promoCode}
+                              onChange={(e) => setFormData({ ...formData, promoCode: e.target.value })}
+                              placeholder="SUMMER10"
+                            />
+                          </div>
+                          <p className="field-help">Shown on cards — the discount % sets the price buyers see.</p>
+                        </div>
                       </div>
-                    </>
+                    </div>
                   )}
                   {showWholesaleFields && (
-                    <>
-                      <div className="form-field">
-                        <label>Minimum Order Quantity (MOQ)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={formData.minimumOrderQty}
-                          onChange={(e) => setFormData({ ...formData, minimumOrderQty: e.target.value })}
-                        />
+                    <div className="channel-pricing-panel wholesale">
+                      <div className="channel-pricing-header">
+                        <div className="channel-pricing-icon"><Layers size={18} /></div>
+                        <div>
+                          <h4>Wholesale pricing</h4>
+                          <p>Set a minimum order quantity and optional bulk tiers (e.g. 50+ units → 10% off).</p>
+                        </div>
                       </div>
-                      <div className="form-field">
-                        <label>Wholesale Promo Code (optional)</label>
-                        <input
-                          value={formData.promoCode}
-                          onChange={(e) => setFormData({ ...formData, promoCode: e.target.value })}
-                          placeholder="BULK-SUMMER"
-                        />
-                      </div>
-                      <div className="form-field full">
-                        <label>Bulk Pricing Tiers</label>
-                        {formData.bulkTiers.map((tier, idx) => (
-                          <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                      <div className="channel-pricing-grid">
+                        <div className="form-field">
+                          <label>Minimum Order Quantity (MOQ)</label>
+                          <div className="input-wrapper">
+                            <Package size={18} className="field-icon" />
                             <input
                               type="number"
-                              placeholder="Min qty"
-                              value={tier.min_quantity}
-                              onChange={(e) => {
-                                const tiers = [...formData.bulkTiers];
-                                tiers[idx] = { ...tiers[idx], min_quantity: parseInt(e.target.value, 10) };
-                                setFormData({ ...formData, bulkTiers: tiers });
-                              }}
+                              min="1"
+                              value={formData.minimumOrderQty}
+                              onChange={(e) => setFormData({ ...formData, minimumOrderQty: e.target.value })}
+                              placeholder="e.g. 10"
                             />
-                            <input
-                              type="number"
-                              placeholder="Discount %"
-                              value={tier.discount_pct}
-                              onChange={(e) => {
-                                const tiers = [...formData.bulkTiers];
-                                tiers[idx] = { ...tiers[idx], discount_pct: parseFloat(e.target.value) };
-                                setFormData({ ...formData, bulkTiers: tiers });
-                              }}
-                            />
-                            <button type="button" onClick={() => setFormData({ ...formData, bulkTiers: formData.bulkTiers.filter((_, i) => i !== idx) })}>Remove</button>
                           </div>
-                        ))}
-                        <button type="button" className="btn-secondary-expert" onClick={() => setFormData({ ...formData, bulkTiers: [...formData.bulkTiers, { min_quantity: '', discount_pct: '' }] })}>
-                          Add Tier
+                        </div>
+                        <div className="form-field">
+                          <label>Wholesale Promo Code (optional)</label>
+                          <div className="input-wrapper">
+                            <Tag size={18} className="field-icon" />
+                            <input
+                              value={formData.promoCode}
+                              onChange={(e) => setFormData({ ...formData, promoCode: e.target.value })}
+                              placeholder="BULK-SUMMER"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="bulk-tiers-block">
+                        <div className="bulk-tiers-title-row">
+                          <label>Bulk Pricing Tiers</label>
+                          <span className="bulk-tiers-hint">Higher qty → bigger discount</span>
+                        </div>
+                        {formData.bulkTiers.length === 0 && (
+                          <p className="bulk-tiers-empty">No tiers yet. Add one to offer volume discounts.</p>
+                        )}
+                        <div className="bulk-tiers-list">
+                          {formData.bulkTiers.map((tier, idx) => (
+                            <div key={idx} className="bulk-tier-card">
+                              <span className="bulk-tier-index">{idx + 1}</span>
+                              <div className="bulk-tier-fields">
+                                <div className="bulk-tier-field">
+                                  <span className="bulk-tier-label">Min quantity</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    placeholder="50"
+                                    value={tier.min_quantity === '' || Number.isNaN(tier.min_quantity) ? '' : tier.min_quantity}
+                                    onChange={(e) => {
+                                      const tiers = [...formData.bulkTiers];
+                                      const raw = e.target.value;
+                                      tiers[idx] = {
+                                        ...tiers[idx],
+                                        min_quantity: raw === '' ? '' : parseInt(raw, 10),
+                                      };
+                                      setFormData({ ...formData, bulkTiers: tiers });
+                                    }}
+                                  />
+                                </div>
+                                <div className="bulk-tier-arrow" aria-hidden>→</div>
+                                <div className="bulk-tier-field">
+                                  <span className="bulk-tier-label">Discount %</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.1"
+                                    placeholder="10"
+                                    value={tier.discount_pct === '' || Number.isNaN(tier.discount_pct) ? '' : tier.discount_pct}
+                                    onChange={(e) => {
+                                      const tiers = [...formData.bulkTiers];
+                                      const raw = e.target.value;
+                                      tiers[idx] = {
+                                        ...tiers[idx],
+                                        discount_pct: raw === '' ? '' : parseFloat(raw),
+                                      };
+                                      setFormData({ ...formData, bulkTiers: tiers });
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="bulk-tier-remove"
+                                title="Remove tier"
+                                onClick={() => setFormData({
+                                  ...formData,
+                                  bulkTiers: formData.bulkTiers.filter((_, i) => i !== idx),
+                                })}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          className="bulk-tier-add"
+                          onClick={() => setFormData({
+                            ...formData,
+                            bulkTiers: [...formData.bulkTiers, { min_quantity: '', discount_pct: '' }],
+                          })}
+                        >
+                          <Plus size={16} />
+                          Add volume tier
                         </button>
                       </div>
-                    </>
+                    </div>
                   )}
                   <div className="pricing-calculator-card">
                     {pricePreview.previewUnavailable ? (

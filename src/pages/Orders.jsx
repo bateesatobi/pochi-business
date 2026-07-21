@@ -10,12 +10,16 @@ import {
   TrendingUp, Search, ChevronLeft, Info, Link2,
 } from 'lucide-react';
 import { toast, alertError } from '../utils/swal';
+import { formatMoney, roundForCurrency } from '../utils/currency';
 import './Orders.css';
 
 const shortId = (id) => (id ? String(id).slice(0, 8) : '—');
 const orderAmount = (order) => order?.subtotal ?? order?.total ?? 0;
 const hasParentRef = (order) =>
   order?.parent_order_id && String(order.parent_order_id) !== String(order.id);
+const money = (amount, order) => formatMoney(amount, order?.currency || 'UGX');
+const amountNumber = (amount, order) =>
+  roundForCurrency(amount, order?.currency || 'UGX').toLocaleString();
 
 const Orders = () => {
   const { data: orders = [], refetch } = useOrders();
@@ -147,7 +151,7 @@ const Orders = () => {
           <div className="icon emerald"><TrendingUp size={20} /></div>
           <div className="info">
             <span className="lbl">View Revenue</span>
-            <span className="val">UGX {totalRevenue.toLocaleString()}</span>
+            <span className="val">{formatMoney(totalRevenue, 'UGX')}</span>
           </div>
         </div>
         <div className="stat-card-refined glass">
@@ -226,7 +230,7 @@ const Orders = () => {
                   <td><span className="date-txt">{order.created_at ? new Date(order.created_at).toLocaleDateString() : 'N/A'}</span></td>
                   <td>
                     <div className="amt-cell-content">
-                      <span className="amt-val">{orderAmount(order).toLocaleString()}</span>
+                      <span className="amt-val">{amountNumber(orderAmount(order), order)}</span>
                       <span className="amt-cur">{order.currency || 'UGX'}</span>
                     </div>
                   </td>
@@ -320,14 +324,14 @@ const Orders = () => {
                           </div>
                         </div>
                         <div className="item-price">
-                          UGX {((item.unit_price * item.quantity) - (item.discount_applied || 0)).toLocaleString()}
+                          {money(((item.unit_price * item.quantity) - (item.discount_applied || 0)), selectedOrder)}
                         </div>
                       </div>
                     ))}
                   </div>
                   <div className="order-total-footer">
                     <span>Your Subtotal</span>
-                    <span className="total-val">UGX {orderAmount(selectedOrder).toLocaleString()}</span>
+                    <span className="total-val">{money(orderAmount(selectedOrder), selectedOrder)}</span>
                   </div>
                 </div>
 

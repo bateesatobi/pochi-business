@@ -12,9 +12,10 @@ import {
   usePayoutAccount,
 } from '../hooks/queries';
 import { alertSuccess, alertError, alertWarning } from '../utils/swal';
+import { formatMoney } from '../utils/currency';
 import './Payments.css';
 
-const fmt = (n) => `UGX ${Number(n || 0).toLocaleString('en-UG', { minimumFractionDigits: 0 })}`;
+const fmt = (n, currency = 'UGX') => formatMoney(n, currency);
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 const STATUS_CONFIG = {

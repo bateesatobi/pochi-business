@@ -5,10 +5,22 @@ export const MERCHANT_PRODUCT_CURRENCY = 'USD';
 export const PRODUCT_CURRENCIES = ['USD', 'UGX', 'KES', 'TZS', 'RWF', 'EUR', 'GBP'];
 export const DEFAULT_PREVIEW_CURRENCY = 'UGX';
 
+/** Mirrors backend RoundingRules: UGX/JPY/RWF/TZS → nearest 100; else 2 dp. */
+const HUNDRED_ROUND_CURRENCIES = new Set(['UGX', 'JPY', 'RWF', 'TZS']);
+
 export const normalizeCurrency = (code) => {
   if (!code) return 'UGX';
   const upper = String(code).toUpperCase();
   return upper === 'KSH' ? 'KES' : upper;
+};
+
+export const roundForCurrency = (amount, currency = 'UGX') => {
+  const value = Number(amount) || 0;
+  const code = normalizeCurrency(currency);
+  if (HUNDRED_ROUND_CURRENCIES.has(code)) {
+    return Math.round(value / 100) * 100;
+  }
+  return Math.round(value * 100) / 100;
 };
 
 const CURRENCY_SYMBOLS = {
@@ -24,39 +36,46 @@ const CURRENCY_SYMBOLS = {
 export const getCurrencySymbol = (currency) =>
   CURRENCY_SYMBOLS[normalizeCurrency(currency)] || normalizeCurrency(currency);
 
-/** eBay-style local buyer price: "USh 247,930" */
+/** eBay-style local buyer price: "USh 247,900" */
 export const formatPublicLocalPrice = (amount, currency) => {
-  const sym = getCurrencySymbol(currency);
-  const value = Math.round(Number(amount) || 0);
+  const code = normalizeCurrency(currency);
+  const sym = getCurrencySymbol(code);
+  const value = roundForCurrency(amount, code);
   return `${sym} ${value.toLocaleString()}`;
 };
 
 /** eBay-style USD reference price: "US$65.99" */
 export const formatPublicUsdPrice = (amount) => {
-  const value = Number(amount) || 0;
+  const value = roundForCurrency(amount, 'USD');
   return `US$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 export const formatMoney = (amount, currency = 'UGX') => {
-  const value = Math.round(Number(amount) || 0);
-  return `${normalizeCurrency(currency)} ${value.toLocaleString()}`;
+  const code = normalizeCurrency(currency);
+  const value = roundForCurrency(amount, code);
+  if (HUNDRED_ROUND_CURRENCIES.has(code)) {
+    return `${code} ${value.toLocaleString()}`;
+  }
+  return `${code} ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 export const getProductListingPrice = (product) => {
   if (!product) return 0;
-  if (product.listing_price != null && product.listing_price > 0) return product.listing_price;
+  if (product.listing_price != null && product.listing_price > 0) {
+    return roundForCurrency(product.listing_price, MERCHANT_PRODUCT_CURRENCY);
+  }
   if (product.platform_fee == null || product.vat == null || product.base_price == null) {
-    return product.base_price || 0;
+    return roundForCurrency(product.base_price || 0, MERCHANT_PRODUCT_CURRENCY);
   }
   const afterFee = product.base_price * (1 + product.platform_fee / 100);
-  return afterFee * (1 + product.vat / 100);
+  return roundForCurrency(afterFee * (1 + product.vat / 100), MERCHANT_PRODUCT_CURRENCY);
 };
 
 /** Discounted buyer listing (USD) — mirrors backend compute_discounted_listing_price. */
 export const getProductDiscountedListingPrice = (product) => {
   if (!product) return null;
   if (product.discounted_listing_price != null && product.discounted_listing_price > 0) {
-    return Number(product.discounted_listing_price);
+    return roundForCurrency(product.discounted_listing_price, MERCHANT_PRODUCT_CURRENCY);
   }
   const pct = Number(product.effective_discount_pct ?? product.discount_pct) || 0;
   if (pct <= 0 || product.base_price == null) return null;
@@ -64,7 +83,7 @@ export const getProductDiscountedListingPrice = (product) => {
   const vat = Number(product.vat ?? 0);
   const discountedBase = product.base_price * (1 - pct / 100);
   const afterFee = discountedBase * (1 + fee / 100);
-  return Number((afterFee * (1 + vat / 100)).toFixed(2));
+  return roundForCurrency(afterFee * (1 + vat / 100), MERCHANT_PRODUCT_CURRENCY);
 };
 
 export const productHasDiscount = (product) => {
@@ -77,11 +96,11 @@ export const convertWithRates = (amount, fromCurrency, toCurrency, rates = {}) =
   const from = normalizeCurrency(fromCurrency);
   const to = normalizeCurrency(toCurrency);
   const value = Number(amount) || 0;
-  if (from === to) return Math.round(value);
+  if (from === to) return roundForCurrency(value, to);
   const direct = rates[`${from}-${to}`];
-  if (direct) return Math.round(value * direct);
+  if (direct) return roundForCurrency(value * direct, to);
   const viaUsd = rates[`${from}-USD`] && rates[`USD-${to}`];
-  if (viaUsd) return Math.round(value * rates[`${from}-USD`] * rates[`USD-${to}`]);
+  if (viaUsd) return roundForCurrency(value * rates[`${from}-USD`] * rates[`USD-${to}`], to);
   return null;
 };
 
@@ -112,7 +131,7 @@ export const enrichProductForViewer = (product, viewerCurrency, fxRates = {}) =>
       enriched = {
         ...enriched,
         display_currency: normalizeCurrency(product.display_currency),
-        display_listing_price: Math.round(Number(product.display_listing_price)),
+        display_listing_price: roundForCurrency(product.display_listing_price, viewer),
       };
     }
 
@@ -122,8 +141,9 @@ export const enrichProductForViewer = (product, viewerCurrency, fxRates = {}) =>
       normalizeCurrency(product.display_currency) === viewer;
 
     if (hasDisplayDiscount) {
-      enriched.display_discounted_listing_price = Math.round(
-        Number(product.display_discounted_listing_price)
+      enriched.display_discounted_listing_price = roundForCurrency(
+        product.display_discounted_listing_price,
+        viewer
       );
     } else if (discountedListing != null) {
       const convertedDiscount = convertWithRates(
@@ -158,20 +178,20 @@ export const enrichProductForViewer = (product, viewerCurrency, fxRates = {}) =>
 };
 
 export const getPublicPriceDisplay = (product, viewerCurrency = 'UGX', fxRates = {}) => {
-  const usdOriginal = Number(getProductListingPrice(product).toFixed(2));
+  const usdOriginal = roundForCurrency(getProductListingPrice(product), MERCHANT_PRODUCT_CURRENCY);
   const usdDiscountedRaw = getProductDiscountedListingPrice(product);
   const usdDiscounted =
-    usdDiscountedRaw != null ? Number(usdDiscountedRaw.toFixed(2)) : null;
+    usdDiscountedRaw != null ? roundForCurrency(usdDiscountedRaw, MERCHANT_PRODUCT_CURRENCY) : null;
   const hasDiscount = usdDiscounted != null && usdDiscounted < usdOriginal;
   const viewer = normalizeCurrency(viewerCurrency);
 
   let localOriginal =
     product?.display_listing_price != null
-      ? Math.round(Number(product.display_listing_price))
+      ? roundForCurrency(product.display_listing_price, product.display_currency || viewer)
       : null;
   let localDiscounted =
     product?.display_discounted_listing_price != null
-      ? Math.round(Number(product.display_discounted_listing_price))
+      ? roundForCurrency(product.display_discounted_listing_price, product.display_currency || viewer)
       : null;
   const localCurrency = product?.display_currency
     ? normalizeCurrency(product.display_currency)

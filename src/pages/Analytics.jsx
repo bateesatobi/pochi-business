@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { BarChart3, TrendingUp, ShoppingBag, DollarSign, Activity, Package, Plus, CreditCard, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useBusinessStats } from '../hooks/queries';
+import { formatMoney, roundForCurrency } from '../utils/currency';
 import './Analytics.css';
 
 const Analytics = () => {
@@ -13,7 +14,7 @@ const Analytics = () => {
   const totalOrders = basic.total_orders || 0;
   const activeProducts = basic.active_products || 0;
   const avgOrderValue = useMemo(
-    () => (totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0),
+    () => (totalOrders > 0 ? roundForCurrency(totalRevenue / totalOrders, 'UGX') : 0),
     [totalRevenue, totalOrders]
   );
 
@@ -61,7 +62,7 @@ const Analytics = () => {
           <div className="stat-icon primary"><DollarSign size={24} /></div>
           <div className="stat-info">
             <span className="lbl">Total Revenue</span>
-            <span className="val">UGX {totalRevenue.toLocaleString()}</span>
+            <span className="val">{formatMoney(totalRevenue, 'UGX')}</span>
           </div>
         </div>
         <div className="stat-card glass">
@@ -82,7 +83,7 @@ const Analytics = () => {
           <div className="stat-icon indigo"><TrendingUp size={24} /></div>
           <div className="stat-info">
             <span className="lbl">Avg Order Value</span>
-            <span className="val">UGX {avgOrderValue.toLocaleString()}</span>
+            <span className="val">{formatMoney(avgOrderValue, 'UGX')}</span>
           </div>
         </div>
       </div>
@@ -132,7 +133,7 @@ const Analytics = () => {
                         </span>
                       )}
                     </span>
-                    <span style={{ fontWeight: 700 }}>UGX {Number(item.amount || 0).toLocaleString()} · {item.status}</span>
+                    <span style={{ fontWeight: 700 }}>{formatMoney(item.amount || 0, 'UGX')} · {item.status}</span>
                   </div>
                 ))}
               </div>
