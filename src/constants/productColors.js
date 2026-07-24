@@ -1,0 +1,56 @@
+/** Shared product color options for the business portal. */
+export const PRODUCT_COLORS = [
+  'White',
+  'Black',
+  'Green',
+  'Blue',
+  'Yellow',
+  'Orange',
+  'Cream',
+  'Grey',
+  'Fog',
+  'Obsidian',
+  'Berry',
+  'Lavender',
+  'Sky Blue',
+  'Cobalt Violet',
+  'Deep Blue',
+  'Silver',
+  'Cosmic Orange',
+  'Brown',
+  'Maroon',
+  'Desert Titanium',
+  'Black Titanium',
+  'Natural Titanium',
+  'White Titanium',
+];
+
+export const PRODUCT_COLOR_HEX = {
+  White: '#FFFFFF',
+  Black: '#000000',
+  Green: '#10B981',
+  Blue: '#3B82F6',
+  Yellow: '#F59E0B',
+  Orange: '#F97316',
+  Cream: '#FFFDD0',
+  Grey: '#6B7280',
+  Fog: '#D7D9DE',
+  Obsidian: '#0B0B0F',
+  Berry: '#8E1B4D',
+  Lavender: '#B57EDC',
+  'Sky Blue': '#87CEEB',
+  'Cobalt Violet': '#5A2A82',
+  'Deep Blue': '#0A2A66',
+  Silver: '#C0C0C0',
+  'Cosmic Orange': '#FF6A00',
+  Brown: '#8B4513',
+  Maroon: '#800000',
+  'Desert Titanium': '#C4A882',
+  'Black Titanium': '#1C1C1E',
+  'Natural Titanium': '#8E8E93',
+  'White Titanium': '#F5F5F7',
+};
+
+export function getProductColorPreview(color) {
+  return PRODUCT_COLOR_HEX[color] || '#CCCCCC';
+}

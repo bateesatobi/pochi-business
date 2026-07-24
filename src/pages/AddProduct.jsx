@@ -4,6 +4,7 @@ import { API_BASE } from '../config/api';
 import { useCategories } from '../hooks/queries';
 import { MERCHANT_PRODUCT_CURRENCY, normalizeCurrency, formatMoney } from '../utils/currency';
 import { DELIVERY_TIME_OPTIONS, DEFAULT_DELIVERY_TIME } from '../utils/deliveryTime';
+import { PRODUCT_COLORS, getProductColorPreview } from '../constants/productColors';
 import { Package, Tag, DollarSign, Info, Plus } from 'lucide-react';
 import './AddProduct.css';
 
@@ -92,19 +93,7 @@ const AddProduct = () => {
     });
   };
 
-  const getColorPreview = (color) => {
-    const colorMap = {
-      'White': '#FFFFFF',
-      'Black': '#000000',
-      'Green': '#10B981',
-      'Blue': '#3B82F6',
-      'Yellow': '#F59E0B',
-      'Orange': '#F97316',
-      'Cream': '#FFFDD0',
-      'Grey': '#6B7280'
-    };
-    return colorMap[color] || '#CCCCCC';
-  };
+  const getColorPreview = getProductColorPreview;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -255,7 +244,7 @@ const AddProduct = () => {
               Select available colors for this product
             </p>
             <div className="color-selector-grid">
-              {['White', 'Black', 'Green', 'Blue', 'Yellow', 'Orange', 'Cream', 'Grey'].map((color) => (
+              {PRODUCT_COLORS.map((color) => (
                 <button
                   key={color}
                   type="button"

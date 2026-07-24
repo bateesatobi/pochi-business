@@ -65,7 +65,19 @@ export const AuthProvider = ({ children }) => {
     fetchBusiness().finally(() => setLoading(false));
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        await axios.post(
+          `${API_BASE}/auth/signout`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } catch {
+        // Still clear local session even if revoke fails (e.g. Redis down / expired token)
+      }
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('cached_business');
     queryClient.clear();

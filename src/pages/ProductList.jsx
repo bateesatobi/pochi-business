@@ -32,6 +32,7 @@ import {
   getProductPromotionDisplay,
 } from '../utils/currency';
 import { DELIVERY_TIME_OPTIONS, DEFAULT_DELIVERY_TIME } from '../utils/deliveryTime';
+import { PRODUCT_COLORS, getProductColorPreview } from '../constants/productColors';
 
 const getStockLabel = (product) => {
   const qty = product?.stock_quantity ?? 0;
@@ -227,19 +228,7 @@ const ProductList = () => {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const getColorPreview = (color) => {
-    const colorMap = {
-      'White': '#FFFFFF',
-      'Black': '#000000',
-      'Green': '#10B981',
-      'Blue': '#3B82F6',
-      'Yellow': '#F59E0B',
-      'Orange': '#F97316',
-      'Cream': '#FFFDD0',
-      'Grey': '#6B7280'
-    };
-    return colorMap[color] || '#CCCCCC';
-  };
+  const getColorPreview = getProductColorPreview;
 
   const openDrawer = (mode, product = null) => {
     setDrawerMode(mode);
@@ -638,8 +627,43 @@ const ProductList = () => {
                        <label>Description</label>
                        <p>{selectedProduct?.description || 'No description provided.'}</p>
                     </div>
-                    <div className="detail-box highlight public-price-detail">
-                       <label>Public pricing preview</label>
+                    <div className="detail-box">
+                       <label>Base Price (your revenue)</label>
+                       <p>{formatMoney(selectedProduct?.base_price, MERCHANT_PRODUCT_CURRENCY)}</p>
+                    </div>
+                    <div className="detail-box">
+                       <label>Selling Price (buyer listing)</label>
+                       <p>
+                         {formatMoney(
+                           selectedProduct?.discounted_listing_price
+                             ?? selectedProduct?.listing_price
+                             ?? selectedProduct?.base_price,
+                           MERCHANT_PRODUCT_CURRENCY
+                         )}
+                         {selectedProduct?.discounted_listing_price != null
+                           && selectedProduct?.listing_price != null
+                           && Number(selectedProduct.discounted_listing_price) !== Number(selectedProduct.listing_price)
+                           ? (
+                             <span style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                               Full listing: {formatMoney(selectedProduct.listing_price, MERCHANT_PRODUCT_CURRENCY)}
+                               {selectedProduct?.discount_pct != null || selectedProduct?.effective_discount_pct != null
+                                 ? ` · ${selectedProduct.effective_discount_pct ?? selectedProduct.discount_pct}% off`
+                                 : ''}
+                             </span>
+                           )
+                           : null}
+                       </p>
+                    </div>
+                    <div className="detail-box">
+                       <label>Platform Fee</label>
+                       <p>{selectedProduct?.platform_fee != null ? `${selectedProduct.platform_fee}%` : '—'}</p>
+                    </div>
+                    <div className="detail-box">
+                       <label>Tax / VAT</label>
+                       <p>{selectedProduct?.vat != null ? `${selectedProduct.vat}%` : '—'}</p>
+                    </div>
+                    <div className="detail-box highlight public-price-detail full">
+                       <label>How buyers see this price</label>
                        {selectedProduct && (() => {
                          const enriched = enrichProductForViewer(selectedProduct, viewerCurrency, fxRates);
                          const display = getPublicPriceDisplay(enriched, viewerCurrency, fxRates);
@@ -651,6 +675,11 @@ const ProductList = () => {
                                className="card-price-local"
                                style={{ color: 'inherit' }}
                              />
+                             {display.showBoth && (
+                               <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                                 USD listing: {formatPublicUsdPrice(display.usdDiscountedAmount ?? display.usdAmount)}
+                               </p>
+                             )}
                              <p className="card-source" style={{ color: 'inherit' }}>Pochi</p>
                              {(() => {
                                const delivery = getProductDeliveryDisplay(selectedProduct);
@@ -669,17 +698,9 @@ const ProductList = () => {
                                  </div>
                                );
                              })()}
-                             <PublicCardPrice display={display} size="usd" style={{ color: 'inherit' }} />
                            </div>
                          );
                        })()}
-                       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
-                         Base: {formatMoney(selectedProduct?.base_price, MERCHANT_PRODUCT_CURRENCY)}
-                         {selectedProduct?.listing_price != null && ` · Listing: ${formatMoney(selectedProduct.listing_price, MERCHANT_PRODUCT_CURRENCY)}`}
-                         {selectedProduct?.discounted_listing_price != null && ` · Sale: ${formatMoney(selectedProduct.discounted_listing_price, MERCHANT_PRODUCT_CURRENCY)}`}
-                         {selectedProduct?.platform_fee != null && ` + ${selectedProduct.platform_fee}% platform fee`}
-                         {selectedProduct?.vat != null && ` + ${selectedProduct.vat}% tax`}
-                       </p>
                     </div>
                     {selectedProduct?.available_sizes && selectedProduct.available_sizes.length > 0 && (
                       <div className="detail-box full">
@@ -836,7 +857,7 @@ const ProductList = () => {
                       Select available colors for this product
                     </p>
                     <div className="color-selector-grid">
-                      {['White', 'Black', 'Green', 'Blue', 'Yellow', 'Orange', 'Cream', 'Grey'].map((color) => (
+                      {PRODUCT_COLORS.map((color) => (
                         <button
                           key={color}
                           type="button"
@@ -908,7 +929,7 @@ const ProductList = () => {
                 </div>
                 <div className="expert-form">
                   <div className="form-field">
-                    <label>Base Selling Price (USD)</label>
+                    <label>Base Price (USD — your revenue)</label>
                     <div className="input-wrapper">
                       <DollarSign size={18} className="field-icon" />
                       <input 
