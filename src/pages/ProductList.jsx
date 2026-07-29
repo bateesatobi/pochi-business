@@ -33,6 +33,7 @@ import {
 } from '../utils/currency';
 import { DELIVERY_TIME_OPTIONS, DEFAULT_DELIVERY_TIME } from '../utils/deliveryTime';
 import { PRODUCT_COLORS, getProductColorPreview } from '../constants/productColors';
+import { DELIVERY_REGION_OPTIONS, formatDeliveryRegions } from '../constants/deliveryRegions';
 
 const getStockLabel = (product) => {
   const qty = product?.stock_quantity ?? 0;
@@ -118,6 +119,7 @@ const ProductList = () => {
     bulkTiers: [],
     availableSizes: [],
     availableColors: [],
+    deliveryRegions: [],
   });
 
   const [pricePreview, setPricePreview] = useState({
@@ -159,6 +161,7 @@ const ProductList = () => {
     bulkTiers: [],
     availableSizes: [],
     availableColors: [],
+    deliveryRegions: [],
   });
 
   const setSaleChannel = (channel) => {
@@ -254,6 +257,7 @@ const ProductList = () => {
         bulkTiers: product.bulk_tiers || [],
         availableSizes: product.available_sizes || [],
         availableColors: product.available_colors || [],
+        deliveryRegions: product.delivery_regions || [],
       });
       setProductImages(product.images ? product.images.map(img => img.base64_content) : []);
     } else {
@@ -293,6 +297,7 @@ const ProductList = () => {
         images: productImages.map((img, idx) => ({ base64_content: img, sort_order: idx })),
         available_sizes: formData.availableSizes.length > 0 ? formData.availableSizes : null,
         available_colors: formData.availableColors.length > 0 ? formData.availableColors : null,
+        delivery_regions: formData.deliveryRegions.length > 0 ? formData.deliveryRegions : null,
       };
 
       if (drawerMode === 'EDIT') {
@@ -489,9 +494,13 @@ const ProductList = () => {
                     {delivery.lines.map((line) => (
                       <p
                         key={line.key}
-                        className={`card-delivery ${line.isFree ? 'is-free' : 'is-time'}`}
+                        className={`card-delivery ${line.isFree ? 'is-free' : line.isRegions ? 'is-regions' : 'is-time'}`}
                       >
-                        {line.key === 'time' ? `Delivery: ${line.text}` : line.text}
+                        {line.key === 'time'
+                          ? `Delivery: ${line.text}`
+                          : line.key === 'regions'
+                            ? `Delivers to: ${formatDeliveryRegions(line.text).join(' · ')}`
+                            : line.text}
                       </p>
                     ))}
                   </div>
@@ -689,10 +698,14 @@ const ProductList = () => {
                                    {delivery.lines.map((line) => (
                                      <p
                                        key={line.key}
-                                       className={`card-delivery ${line.isFree ? 'is-free' : 'is-time'}`}
+                                       className={`card-delivery ${line.isFree ? 'is-free' : line.isRegions ? 'is-regions' : 'is-time'}`}
                                        style={{ color: line.isFree ? undefined : 'inherit' }}
                                      >
-                                       {line.key === 'time' ? `Delivery: ${line.text}` : line.text}
+                                       {line.key === 'time'
+                                         ? `Delivery: ${line.text}`
+                                         : line.key === 'regions'
+                                           ? `Delivers to: ${formatDeliveryRegions(line.text).join(' · ')}`
+                                           : line.text}
                                      </p>
                                    ))}
                                  </div>
@@ -725,6 +738,18 @@ const ProductList = () => {
                                 style={{ background: getColorPreview(color) }}
                               />
                               {color}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedProduct?.delivery_regions && selectedProduct.delivery_regions.length > 0 && (
+                      <div className="detail-box full">
+                        <label>Delivery Regions</label>
+                        <div className="detail-chips-container">
+                          {formatDeliveryRegions(selectedProduct.delivery_regions).map((label, i) => (
+                            <span key={i} className="detail-chip detail-chip-size">
+                              {label}
                             </span>
                           ))}
                         </div>
@@ -999,6 +1024,35 @@ const ProductList = () => {
                         <span className="delivery-preview-paid">Nothing shown on card</span>
                       )}
                     </p>
+                  </div>
+                  <div className="form-field full">
+                    <label>Delivery Regions (optional)</label>
+                    <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                      Where this product can be delivered. Shown on the product card and details when selected.
+                    </p>
+                    <div className="region-selector-grid">
+                      {DELIVERY_REGION_OPTIONS.map((region) => {
+                        const selected = formData.deliveryRegions.includes(region.code);
+                        return (
+                          <button
+                            key={region.code}
+                            type="button"
+                            className={`region-option ${selected ? 'selected' : ''}`}
+                            onClick={() => setFormData({
+                              ...formData,
+                              deliveryRegions: selected
+                                ? formData.deliveryRegions.filter((c) => c !== region.code)
+                                : [...formData.deliveryRegions, region.code],
+                            })}
+                            aria-pressed={selected}
+                          >
+                            <span className="region-check" aria-hidden="true">{selected ? '✓' : ''}</span>
+                            <span className="region-flag">{region.flag}</span>
+                            <span className="region-label">{region.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                   {showRetailFields && (
                     <div className="channel-pricing-panel retail">

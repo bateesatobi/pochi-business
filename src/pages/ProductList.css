@@ -1277,6 +1277,68 @@
     color: #9aa0a6;
 }
 
+.card-delivery.is-regions {
+    color: #9aa0a6;
+}
+
+.region-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+}
+
+.region-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 10px;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.region-option:hover {
+    border-color: var(--primary, #4f46e5);
+}
+
+.region-option.selected {
+    border-color: var(--primary, #4f46e5);
+    background: rgba(79, 70, 229, 0.08);
+}
+
+.region-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1px solid var(--border, #d1d5db);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+    color: var(--primary, #4f46e5);
+}
+
+.region-option.selected .region-check {
+    border-color: var(--primary, #4f46e5);
+    background: rgba(79, 70, 229, 0.15);
+}
+
+.region-flag {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.region-label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
 .card-promo-badge {
     position: absolute;
     top: 12px;

@@ -232,7 +232,7 @@ export const isFreeDelivery = (product) => product?.free_delivery === true;
 const hasDeliveryTime = (product) =>
   Boolean(product?.expected_delivery_time);
 
-/** Card delivery lines — free shipping and/or expected time, each only when set. */
+/** Card delivery lines — free shipping, expected time, and/or regions when set. */
 export const getProductDeliveryDisplay = (product) => {
   if (!product) return { lines: [] };
 
@@ -245,6 +245,16 @@ export const getProductDeliveryDisplay = (product) => {
       key: 'time',
       text: deliveryTimeLabel(product.expected_delivery_time),
       isFree: false,
+    });
+  }
+  const regions = Array.isArray(product.delivery_regions) ? product.delivery_regions : [];
+  if (regions.length > 0) {
+    // Labels resolved in UI via formatDeliveryRegions; codes joined as fallback.
+    lines.push({
+      key: 'regions',
+      text: regions,
+      isFree: false,
+      isRegions: true,
     });
   }
   return { lines };

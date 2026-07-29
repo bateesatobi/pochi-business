@@ -5,6 +5,7 @@ import { useCategories } from '../hooks/queries';
 import { MERCHANT_PRODUCT_CURRENCY, normalizeCurrency, formatMoney } from '../utils/currency';
 import { DELIVERY_TIME_OPTIONS, DEFAULT_DELIVERY_TIME } from '../utils/deliveryTime';
 import { PRODUCT_COLORS, getProductColorPreview } from '../constants/productColors';
+import { DELIVERY_REGION_OPTIONS } from '../constants/deliveryRegions';
 import { Package, Tag, DollarSign, Info, Plus } from 'lucide-react';
 import './AddProduct.css';
 
@@ -27,6 +28,7 @@ const AddProduct = () => {
     bulkTiers: [],
     availableSizes: [],
     availableColors: [],
+    deliveryRegions: [],
   });
   const [pricePreview, setPricePreview] = useState({
     base_price: 0,
@@ -93,6 +95,15 @@ const AddProduct = () => {
     });
   };
 
+  const handleRegionToggle = (code) => {
+    setFormData({
+      ...formData,
+      deliveryRegions: formData.deliveryRegions.includes(code)
+        ? formData.deliveryRegions.filter((c) => c !== code)
+        : [...formData.deliveryRegions, code],
+    });
+  };
+
   const getColorPreview = getProductColorPreview;
 
   const handleSubmit = async (e) => {
@@ -117,6 +128,7 @@ const AddProduct = () => {
         bulk_tiers: formData.bulkTiers.filter((t) => t.min_quantity && t.discount_pct),
         available_sizes: formData.availableSizes.length > 0 ? formData.availableSizes : null,
         available_colors: formData.availableColors.length > 0 ? formData.availableColors : null,
+        delivery_regions: formData.deliveryRegions.length > 0 ? formData.deliveryRegions : null,
       };
 
       await axios.post(`${API_BASE}/products/`, payload, {
@@ -181,6 +193,25 @@ const AddProduct = () => {
                 </span>
               )}
             </p>
+          </div>
+
+          <div className="form-group full-width">
+            <label>Delivery Regions (optional)</label>
+            <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+              Where this product can be delivered
+            </p>
+            <div className="size-selector-grid">
+              {DELIVERY_REGION_OPTIONS.map((region) => (
+                <button
+                  key={region.code}
+                  type="button"
+                  className={`size-option ${formData.deliveryRegions.includes(region.code) ? 'selected' : ''}`}
+                  onClick={() => handleRegionToggle(region.code)}
+                >
+                  <span className="size-label">{region.flag} {region.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="form-group">
