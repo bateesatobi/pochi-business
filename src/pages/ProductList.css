@@ -1444,8 +1444,71 @@
 }
 
 .size-option.selected .size-label {
-  color: white;
+  color: #fff;
   font-weight: 700;
+}
+
+.option-group-label {
+  margin: 16px 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.custom-option-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+.custom-option-row input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 8px;
+  background: #FAFBFC;
+  font-size: 14px;
+}
+
+.custom-option-row input:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: #fff;
+}
+
+.btn-add-option {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1.5px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-add-option:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+.selected-options-row {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #E2E8F0;
+}
+
+.selected-option-chip {
+  cursor: pointer;
+  border: none;
+  font: inherit;
 }
 
 .size-label {

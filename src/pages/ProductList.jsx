@@ -34,6 +34,16 @@ import {
 import { DELIVERY_TIME_OPTIONS, DEFAULT_DELIVERY_TIME } from '../utils/deliveryTime';
 import { PRODUCT_COLORS, getProductColorPreview } from '../constants/productColors';
 import { DELIVERY_REGION_OPTIONS, formatDeliveryRegions } from '../constants/deliveryRegions';
+import {
+  LETTER_SIZES,
+  NUMERIC_SIZES,
+  CAPACITY_PRESETS,
+  GENDER_OPTIONS,
+  formatGender,
+  hasOption,
+  toggleOption,
+  addCustomOption,
+} from '../constants/productOptions';
 
 const getStockLabel = (product) => {
   const qty = product?.stock_quantity ?? 0;
@@ -114,6 +124,7 @@ const ProductList = () => {
     minimumOrderQty: '',
     vatPct: '18',
     condition: 'NEW',
+    gender: '',
     freeDelivery: 'no',
     expectedDeliveryTime: DEFAULT_DELIVERY_TIME,
     bulkTiers: [],
@@ -121,6 +132,8 @@ const ProductList = () => {
     availableColors: [],
     deliveryRegions: [],
   });
+  const [customSizeInput, setCustomSizeInput] = useState('');
+  const [customCapacityInput, setCustomCapacityInput] = useState('');
 
   const [pricePreview, setPricePreview] = useState({
     base_price: 0,
@@ -156,6 +169,7 @@ const ProductList = () => {
     minimumOrderQty: '',
     vatPct: '18',
     condition: 'NEW',
+    gender: '',
     freeDelivery: 'no',
     expectedDeliveryTime: DEFAULT_DELIVERY_TIME,
     bulkTiers: [],
@@ -252,6 +266,7 @@ const ProductList = () => {
         minimumOrderQty: product.minimum_order_qty?.toString() || '',
         vatPct: (product.vat ?? 18).toString(),
         condition: product.condition || 'NEW',
+        gender: product.gender || '',
         freeDelivery: isFreeDelivery(product) ? 'yes' : 'no',
         expectedDeliveryTime: product.expected_delivery_time || DEFAULT_DELIVERY_TIME,
         bulkTiers: product.bulk_tiers || [],
@@ -264,9 +279,32 @@ const ProductList = () => {
       setFormData(emptyForm());
       setProductImages([]);
     }
+    setCustomSizeInput('');
+    setCustomCapacityInput('');
     setStep(1);
     setIsDrawerOpen(true);
     setMenuOpenSku(null);
+  };
+
+  const toggleSizeOption = (value) => {
+    setFormData((prev) => ({
+      ...prev,
+      availableSizes: toggleOption(prev.availableSizes, value),
+    }));
+  };
+
+  const submitCustomSize = () => {
+    const { list, added } = addCustomOption(formData.availableSizes, customSizeInput);
+    if (!added) return;
+    setFormData((prev) => ({ ...prev, availableSizes: list }));
+    setCustomSizeInput('');
+  };
+
+  const submitCustomCapacity = () => {
+    const { list, added } = addCustomOption(formData.availableSizes, customCapacityInput);
+    if (!added) return;
+    setFormData((prev) => ({ ...prev, availableSizes: list }));
+    setCustomCapacityInput('');
   };
 
   const handlePublish = async () => {
@@ -288,6 +326,7 @@ const ProductList = () => {
           : null,
         vat: formData.vatPct !== '' ? parseFloat(formData.vatPct) : null,
         condition: formData.condition || 'NEW',
+        gender: formData.gender || null,
         currency: MERCHANT_PRODUCT_CURRENCY,
         free_delivery: formData.freeDelivery === 'yes',
         expected_delivery_time: formData.expectedDeliveryTime,
@@ -587,6 +626,12 @@ const ProductList = () => {
                        <label>Condition</label>
                        <p>{selectedProduct?.condition === 'USED' ? 'Used' : 'New'}</p>
                     </div>
+                    {selectedProduct?.gender && (
+                      <div className="detail-box">
+                         <label>Gender</label>
+                         <p>{formatGender(selectedProduct.gender)}</p>
+                      </div>
+                    )}
                     <div className="detail-box">
                        <label>Stock Quantity</label>
                        <p>{selectedProduct?.stock_quantity > 0 ? `${selectedProduct.stock_quantity} units available` : 'Out of stock — edit product and set Stock Quantity on step 1'}</p>
@@ -717,7 +762,7 @@ const ProductList = () => {
                     </div>
                     {selectedProduct?.available_sizes && selectedProduct.available_sizes.length > 0 && (
                       <div className="detail-box full">
-                        <label>Available Sizes</label>
+                        <label>Available Options (sizes / capacity)</label>
                         <div className="detail-chips-container">
                           {selectedProduct.available_sizes.map((size, i) => (
                             <span key={i} className="detail-chip detail-chip-size">
@@ -853,28 +898,117 @@ const ProductList = () => {
                     </div>
                     <p className="field-help">Mark used items (e.g. second-hand phones). Shown as a badge on the product card.</p>
                   </div>
+                  <div className="form-field">
+                    <label>Gender (optional)</label>
+                    <div className="input-wrapper">
+                      <Tag size={18} className="field-icon" />
+                      <select
+                        value={formData.gender}
+                        onChange={e => setFormData({ ...formData, gender: e.target.value })}
+                      >
+                        {GENDER_OPTIONS.map((opt) => (
+                          <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="field-help">Optional. Use for clothing, cosmetics, accessories, or any product where it helps buyers.</p>
+                  </div>
                   <div className="form-field full">
-                    <label>Product Sizes (optional)</label>
+                    <label>Sizes &amp; capacity (optional)</label>
                     <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                      Select available sizes for this product
+                      Optional for any product. Pick presets and/or type your own labels (e.g. 42, 200ml, One Size).
                     </p>
+
+                    <p className="option-group-label">Letter sizes</p>
                     <div className="size-selector-grid">
-                      {['M', 'L', 'XL', 'XXL'].map((size) => (
+                      {LETTER_SIZES.map((size) => (
                         <button
                           key={size}
                           type="button"
-                          className={`size-option ${formData.availableSizes.includes(size) ? 'selected' : ''}`}
-                          onClick={() => setFormData({
-                            ...formData,
-                            availableSizes: formData.availableSizes.includes(size)
-                              ? formData.availableSizes.filter(s => s !== size)
-                              : [...formData.availableSizes, size]
-                          })}
+                          className={`size-option ${hasOption(formData.availableSizes, size) ? 'selected' : ''}`}
+                          onClick={() => toggleSizeOption(size)}
                         >
                           <span className="size-label">{size}</span>
                         </button>
                       ))}
                     </div>
+
+                    <p className="option-group-label">Numeric sizes</p>
+                    <div className="size-selector-grid">
+                      {NUMERIC_SIZES.map((size) => (
+                        <button
+                          key={size}
+                          type="button"
+                          className={`size-option ${hasOption(formData.availableSizes, size) ? 'selected' : ''}`}
+                          onClick={() => toggleSizeOption(size)}
+                        >
+                          <span className="size-label">{size}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="custom-option-row">
+                      <input
+                        type="text"
+                        value={customSizeInput}
+                        onChange={(e) => setCustomSizeInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            submitCustomSize();
+                          }
+                        }}
+                        placeholder="Custom size (e.g. 13, 42 EU, One Size)"
+                      />
+                      <button type="button" className="btn-add-option" onClick={submitCustomSize}>Add</button>
+                    </div>
+
+                    <p className="option-group-label">Capacity / volume</p>
+                    <div className="size-selector-grid">
+                      {CAPACITY_PRESETS.map((cap) => (
+                        <button
+                          key={cap}
+                          type="button"
+                          className={`size-option ${hasOption(formData.availableSizes, cap) ? 'selected' : ''}`}
+                          onClick={() => toggleSizeOption(cap)}
+                        >
+                          <span className="size-label">{cap}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="custom-option-row">
+                      <input
+                        type="text"
+                        value={customCapacityInput}
+                        onChange={(e) => setCustomCapacityInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            submitCustomCapacity();
+                          }
+                        }}
+                        placeholder="Custom capacity (e.g. 200ml, 1L, 500g)"
+                      />
+                      <button type="button" className="btn-add-option" onClick={submitCustomCapacity}>Add</button>
+                    </div>
+
+                    {formData.availableSizes.length > 0 && (
+                      <div className="selected-options-row">
+                        <span className="option-group-label" style={{ marginTop: 0 }}>Selected</span>
+                        <div className="detail-chips-container">
+                          {formData.availableSizes.map((size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              className="detail-chip detail-chip-size selected-option-chip"
+                              onClick={() => toggleSizeOption(size)}
+                              title="Remove"
+                            >
+                              {size} ×
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="form-field full">
                     <label>Product Colors (optional)</label>

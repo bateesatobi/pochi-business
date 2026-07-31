@@ -6,6 +6,15 @@ import { MERCHANT_PRODUCT_CURRENCY, normalizeCurrency, formatMoney } from '../ut
 import { DELIVERY_TIME_OPTIONS, DEFAULT_DELIVERY_TIME } from '../utils/deliveryTime';
 import { PRODUCT_COLORS, getProductColorPreview } from '../constants/productColors';
 import { DELIVERY_REGION_OPTIONS } from '../constants/deliveryRegions';
+import {
+  LETTER_SIZES,
+  NUMERIC_SIZES,
+  CAPACITY_PRESETS,
+  GENDER_OPTIONS,
+  hasOption,
+  toggleOption,
+  addCustomOption,
+} from '../constants/productOptions';
 import { Package, Tag, DollarSign, Info, Plus } from 'lucide-react';
 import './AddProduct.css';
 
@@ -23,6 +32,7 @@ const AddProduct = () => {
     minimumOrderQty: '',
     vatPct: '18',
     condition: 'NEW',
+    gender: '',
     freeDelivery: 'no',
     expectedDeliveryTime: DEFAULT_DELIVERY_TIME,
     bulkTiers: [],
@@ -30,6 +40,8 @@ const AddProduct = () => {
     availableColors: [],
     deliveryRegions: [],
   });
+  const [customSizeInput, setCustomSizeInput] = useState('');
+  const [customCapacityInput, setCustomCapacityInput] = useState('');
   const [pricePreview, setPricePreview] = useState({
     base_price: 0,
     platform_fee_pct: null,
@@ -80,10 +92,22 @@ const AddProduct = () => {
   const handleSizeToggle = (size) => {
     setFormData({
       ...formData,
-      availableSizes: formData.availableSizes.includes(size)
-        ? formData.availableSizes.filter(s => s !== size)
-        : [...formData.availableSizes, size]
+      availableSizes: toggleOption(formData.availableSizes, size),
     });
+  };
+
+  const submitCustomSize = () => {
+    const { list, added } = addCustomOption(formData.availableSizes, customSizeInput);
+    if (!added) return;
+    setFormData({ ...formData, availableSizes: list });
+    setCustomSizeInput('');
+  };
+
+  const submitCustomCapacity = () => {
+    const { list, added } = addCustomOption(formData.availableSizes, customCapacityInput);
+    if (!added) return;
+    setFormData({ ...formData, availableSizes: list });
+    setCustomCapacityInput('');
   };
 
   const handleColorToggle = (color) => {
@@ -123,6 +147,7 @@ const AddProduct = () => {
         minimum_order_qty: formData.minimumOrderQty ? parseInt(formData.minimumOrderQty, 10) : null,
         vat: formData.vatPct !== '' ? parseFloat(formData.vatPct) : null,
         condition: formData.condition || 'NEW',
+        gender: formData.gender || null,
         free_delivery: formData.freeDelivery === 'yes',
         expected_delivery_time: formData.expectedDeliveryTime,
         bulk_tiers: formData.bulkTiers.filter((t) => t.min_quantity && t.discount_pct),
@@ -250,22 +275,81 @@ const AddProduct = () => {
             <textarea name="description" rows="4" placeholder="Tell your customers about this product..." value={formData.description} onChange={handleChange} />
           </div>
 
-          <div className="form-group full-width">
-            <label>Product Sizes (optional)</label>
-            <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-              Select available sizes for this product
+          <div className="form-group">
+            <label>Gender (optional)</label>
+            <select name="gender" value={formData.gender} onChange={handleChange}>
+              {GENDER_OPTIONS.map((opt) => (
+                <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              Optional for any product where it helps buyers.
             </p>
+          </div>
+
+          <div className="form-group full-width">
+            <label>Sizes &amp; capacity (optional)</label>
+            <p className="field-help" style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+              Optional for any product. Use presets or type custom labels.
+            </p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8 }}>Letter sizes</p>
             <div className="size-selector-grid">
-              {['M', 'L', 'XL', 'XXL'].map((size) => (
+              {LETTER_SIZES.map((size) => (
                 <button
                   key={size}
                   type="button"
-                  className={`size-option ${formData.availableSizes.includes(size) ? 'selected' : ''}`}
+                  className={`size-option ${hasOption(formData.availableSizes, size) ? 'selected' : ''}`}
                   onClick={() => handleSizeToggle(size)}
                 >
                   <span className="size-label">{size}</span>
                 </button>
               ))}
+            </div>
+            <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', margin: '12px 0 8px' }}>Numeric sizes</p>
+            <div className="size-selector-grid">
+              {NUMERIC_SIZES.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  className={`size-option ${hasOption(formData.availableSizes, size) ? 'selected' : ''}`}
+                  onClick={() => handleSizeToggle(size)}
+                >
+                  <span className="size-label">{size}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <input
+                type="text"
+                value={customSizeInput}
+                onChange={(e) => setCustomSizeInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitCustomSize(); } }}
+                placeholder="Custom size (e.g. 13, 42 EU, One Size)"
+              />
+              <button type="button" onClick={submitCustomSize}>Add</button>
+            </div>
+            <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', margin: '12px 0 8px' }}>Capacity / volume</p>
+            <div className="size-selector-grid">
+              {CAPACITY_PRESETS.map((cap) => (
+                <button
+                  key={cap}
+                  type="button"
+                  className={`size-option ${hasOption(formData.availableSizes, cap) ? 'selected' : ''}`}
+                  onClick={() => handleSizeToggle(cap)}
+                >
+                  <span className="size-label">{cap}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <input
+                type="text"
+                value={customCapacityInput}
+                onChange={(e) => setCustomCapacityInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitCustomCapacity(); } }}
+                placeholder="Custom capacity (e.g. 200ml, 1L, 500g)"
+              />
+              <button type="button" onClick={submitCustomCapacity}>Add</button>
             </div>
           </div>
 
