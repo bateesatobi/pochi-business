@@ -4,6 +4,7 @@ export const DELIVERY_REGION_OPTIONS = [
   { code: 'KENYA', label: 'Kenya', flag: '🇰🇪' },
   { code: 'TANZANIA', label: 'Tanzania', flag: '🇹🇿' },
   { code: 'RWANDA', label: 'Rwanda', flag: '🇷🇼' },
+  { code: 'SOUTH_SUDAN', label: 'South Sudan', flag: '🇸🇸' },
   { code: 'EAST_AFRICA', label: 'East Africa', flag: '🌍' },
 ];
 
