@@ -5,6 +5,10 @@ import {
   SELLER_AGREEMENT_META,
   SELLER_AGREEMENT_SECTIONS,
 } from '../content/sellerAgreement';
+import {
+  PRIVACY_POLICY_META,
+  PRIVACY_POLICY_SECTIONS,
+} from '../content/privacyPolicy';
 import logo from '../assets/logo.png';
 import './LegalDocumentPage.css';
 
@@ -15,13 +19,20 @@ const PAGE_CONFIG = {
     description:
       'Please read this agreement carefully before registering your business on Pochi Commerce.',
     icon: Scale,
+    meta: SELLER_AGREEMENT_META,
+    sections: SELLER_AGREEMENT_SECTIONS,
+    showParties: true,
+    preambleLabel: 'This Seller Agreement ("Agreement") is entered into between:',
   },
   '/privacy': {
     eyebrow: 'Privacy Policy',
-    headline: 'Seller Agreement',
+    headline: 'Data Protection and Privacy Policy',
     description:
-      'This policy outlines the agreement governing the relationship between Tourify Technologies Ltd and the Seller.',
+      'How Tourify Technologies Ltd collects, uses, stores, and protects personal data on the Pochi platform.',
     icon: Shield,
+    meta: PRIVACY_POLICY_META,
+    sections: PRIVACY_POLICY_SECTIONS,
+    showParties: false,
   },
 };
 
@@ -57,6 +68,7 @@ const renderSectionBody = (section) => (
     {section.subsections?.map((sub) => (
       <div key={sub.heading} className="legal-subsection">
         <h4>{sub.heading}</h4>
+        {sub.intro && <p className="legal-intro">{sub.intro}</p>}
         {renderBullets(sub.bullets)}
       </div>
     ))}
@@ -80,10 +92,13 @@ const LegalDocumentPage = () => {
   const { pathname } = useLocation();
   const config = PAGE_CONFIG[pathname] || PAGE_CONFIG['/terms'];
   const Icon = config.icon;
-  const [activeSection, setActiveSection] = useState(SELLER_AGREEMENT_SECTIONS[0]?.id);
+  const sections = config.sections;
+  const meta = config.meta;
+  const [activeSection, setActiveSection] = useState(sections[0]?.id);
 
   useEffect(() => {
-    const observers = SELLER_AGREEMENT_SECTIONS.map((section) => {
+    setActiveSection(sections[0]?.id);
+    const observers = sections.map((section) => {
       const element = document.getElementById(section.id);
       if (!element) return null;
 
@@ -98,7 +113,7 @@ const LegalDocumentPage = () => {
     });
 
     return () => observers.forEach((observer) => observer?.disconnect());
-  }, []);
+  }, [pathname, sections]);
 
   const scrollToSection = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -131,13 +146,13 @@ const LegalDocumentPage = () => {
             <div className="legal-meta-chip">
               <FileText size={16} />
               <span>
-                <strong>Last Updated:</strong> {SELLER_AGREEMENT_META.lastUpdated}
+                <strong>Last Updated:</strong> {meta.lastUpdated}
               </span>
             </div>
             <div className="legal-meta-chip">
               <Shield size={16} />
               <span>
-                <strong>Effective:</strong> {SELLER_AGREEMENT_META.effectiveDate}
+                <strong>Effective:</strong> {meta.effectiveDate}
               </span>
             </div>
           </div>
@@ -148,7 +163,7 @@ const LegalDocumentPage = () => {
         <aside className="legal-toc glass">
           <h3>Contents</h3>
           <nav>
-            {SELLER_AGREEMENT_SECTIONS.map((section) => (
+            {sections.map((section) => (
               <button
                 key={section.id}
                 type="button"
@@ -163,16 +178,18 @@ const LegalDocumentPage = () => {
 
         <main className="legal-main">
           <article className="legal-document glass">
-            <div className="legal-preamble">
-              <p className="legal-preamble-label">This Seller Agreement (&quot;Agreement&quot;) is entered into between:</p>
-              <ul className="legal-list">
-                {SELLER_AGREEMENT_META.parties.map((party) => (
-                  <li key={party}>{party}</li>
-                ))}
-              </ul>
-            </div>
+            {config.showParties && (
+              <div className="legal-preamble">
+                <p className="legal-preamble-label">{config.preambleLabel}</p>
+                <ul className="legal-list">
+                  {meta.parties.map((party) => (
+                    <li key={party}>{party}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-            {SELLER_AGREEMENT_SECTIONS.map((section) => (
+            {sections.map((section) => (
               <section key={section.id} id={section.id} className="legal-section">
                 <h2>{section.title}</h2>
                 {renderSectionBody(section)}
