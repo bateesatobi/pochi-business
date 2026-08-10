@@ -308,6 +308,18 @@ const Orders = () => {
                       <label>Customer ID</label>
                       <span className="val">{selectedOrder.user_id}</span>
                     </div>
+                    <div className="info-item">
+                      <label>Receiver name</label>
+                      <span className="val">{selectedOrder.receiver_name || '—'}</span>
+                    </div>
+                    <div className="info-item">
+                      <label>Telephone</label>
+                      <span className="val">{selectedOrder.receiver_phone || '—'}</span>
+                    </div>
+                    <div className="info-item" style={{ gridColumn: '1 / -1' }}>
+                      <label>Delivery address</label>
+                      <span className="val">{selectedOrder.delivery_address || '—'}</span>
+                    </div>
                   </div>
                 </div>
 
