@@ -4,15 +4,24 @@ import {
   useUpdateOrderStatus,
   useUpdateOrderTracking,
 } from '../hooks/queries';
+import { api } from '../lib/api';
 import {
   ShoppingCart, Clock, CheckCircle, Truck, AlertCircle,
-  ChevronRight, X, User, Calendar, Package, Eye,
-  TrendingUp, Search, ChevronLeft, Info, Link2,
+  ChevronRight, X, User, Calendar, Package, Eye, AlertTriangle,
+  TrendingUp, Search, ChevronLeft, Info, Link2, Download,
 } from 'lucide-react';
 import { toast, alertError } from '../utils/swal';
 import { formatMoney, roundForCurrency } from '../utils/currency';
 import './Orders.css';
 
+const ORDERS_VIEWS_KEY = 'business_orders_saved_views_v1';
+const DEFAULT_ORDER_VIEW_FILTERS = {
+  searchTerm: '',
+  startDate: '',
+  endDate: '',
+  statusFilter: 'ALL',
+  sortBy: 'date_desc',
+};
 const shortId = (id) => (id ? String(id).slice(0, 8) : '—');
 const orderAmount = (order) => order?.subtotal ?? order?.total ?? 0;
 const hasParentRef = (order) =>
@@ -37,8 +46,97 @@ const Orders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [sortBy, setSortBy] = useState('date_desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [savedViews, setSavedViews] = useState([]);
+  const [activeViewId, setActiveViewId] = useState('default');
+  const [viewsHydrated, setViewsHydrated] = useState(false);
+
+  const presetViews = [
+    {
+      id: 'pending_only',
+      name: 'Pending Only',
+      filters: { searchTerm: '', startDate: '', endDate: '', statusFilter: 'PENDING', sortBy: 'date_desc' },
+    },
+    {
+      id: 'today_orders',
+      name: "Today's Orders",
+      filters: {
+        searchTerm: '',
+        startDate: new Date().toISOString().slice(0, 10),
+        endDate: new Date().toISOString().slice(0, 10),
+        statusFilter: 'ALL',
+        sortBy: 'date_desc',
+      },
+    },
+    {
+      id: 'value_high',
+      name: 'High Value First',
+      filters: { searchTerm: '', startDate: '', endDate: '', statusFilter: 'ALL', sortBy: 'amount_desc' },
+    },
+  ];
+
+  const persistUiState = async ({
+    nextSavedViews = savedViews,
+    nextActiveViewId = activeViewId,
+    nextFilters = {
+      searchTerm,
+      startDate,
+      endDate,
+      statusFilter,
+      sortBy,
+    },
+  } = {}) => {
+    const payload = {
+      savedViews: nextSavedViews,
+      activeViewId: nextActiveViewId,
+      filters: nextFilters,
+    };
+    window.localStorage.setItem(ORDERS_VIEWS_KEY, JSON.stringify(payload));
+    try {
+      await api.put('/business/ui-state/orders', { state: payload });
+    } catch {
+      // Keep local fallback if API sync is temporarily unavailable.
+    }
+  };
+
+  const applyViewFilters = (filters, viewId = 'default') => {
+    const merged = { ...DEFAULT_ORDER_VIEW_FILTERS, ...(filters || {}) };
+    setSearchTerm(merged.searchTerm);
+    setStartDate(merged.startDate);
+    setEndDate(merged.endDate);
+    setStatusFilter(merged.statusFilter);
+    setSortBy(merged.sortBy);
+    setCurrentPage(1);
+    setActiveViewId(viewId);
+    if (viewsHydrated) {
+      persistUiState({ nextActiveViewId: viewId, nextFilters: merged });
+    }
+  };
+
+  const saveCurrentView = () => {
+    const name = window.prompt('Saved view name');
+    if (!name?.trim()) return;
+    const view = {
+      id: `custom_${Date.now()}`,
+      name: name.trim(),
+      filters: { searchTerm, startDate, endDate, statusFilter, sortBy },
+    };
+    const nextSavedViews = [view, ...savedViews].slice(0, 8);
+    setSavedViews(nextSavedViews);
+    setActiveViewId(view.id);
+    persistUiState({ nextSavedViews, nextActiveViewId: view.id });
+  };
+
+  const removeSavedView = (id) => {
+    const nextSavedViews = savedViews.filter((view) => view.id !== id);
+    const nextActiveViewId = activeViewId === id ? 'default' : activeViewId;
+    setSavedViews(nextSavedViews);
+    if (activeViewId === id) setActiveViewId('default');
+    persistUiState({ nextSavedViews, nextActiveViewId });
+  };
 
   const openOrderDetails = (order) => {
     setSelectedOrder(order);
@@ -57,6 +155,48 @@ const Orders = () => {
     const fresh = orders.find((o) => String(o.id) === String(selectedOrder.id));
     if (fresh) setSelectedOrder(fresh);
   }, [orders, selectedOrder?.id]);
+
+  useEffect(() => {
+    const hydrate = async () => {
+      let localState = null;
+      try {
+        const raw = window.localStorage.getItem(ORDERS_VIEWS_KEY);
+        localState = raw ? JSON.parse(raw) : null;
+      } catch {
+        localState = null;
+      }
+      if (Array.isArray(localState)) {
+        setSavedViews(localState);
+      }
+      if (localState?.savedViews) setSavedViews(localState.savedViews);
+      if (localState?.activeViewId) setActiveViewId(localState.activeViewId);
+      if (localState?.filters) applyViewFilters(localState.filters, localState.activeViewId || 'default');
+
+      try {
+        const res = await api.get('/business/ui-state/orders');
+        const serverState = res?.data?.state || {};
+        if (Array.isArray(serverState.savedViews)) setSavedViews(serverState.savedViews);
+        if (serverState.activeViewId) setActiveViewId(serverState.activeViewId);
+        if (serverState.filters) {
+          applyViewFilters(serverState.filters, serverState.activeViewId || 'default');
+        }
+      } catch {
+        // Stay on local fallback if server fetch fails.
+      } finally {
+        setViewsHydrated(true);
+      }
+    };
+    hydrate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!viewsHydrated) return;
+    const timer = setTimeout(() => {
+      persistUiState();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [viewsHydrated, savedViews, activeViewId, searchTerm, startDate, endDate, statusFilter, sortBy]);
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -78,18 +218,59 @@ const Orders = () => {
       String(order.user_id || '').toLowerCase().includes(q) ||
       String(order.parent_order_id || '').toLowerCase().includes(q);
 
+    const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
     const matchesStart = startDate ? orderDate >= new Date(startDate) : true;
     const matchesEnd = endDate ? orderDate <= new Date(endDate + 'T23:59:59') : true;
 
-    return matchesSearch && matchesStart && matchesEnd;
+    return matchesSearch && matchesStatus && matchesStart && matchesEnd;
+  });
+
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
+    if (sortBy === 'amount_asc') return orderAmount(a) - orderAmount(b);
+    if (sortBy === 'amount_desc') return orderAmount(b) - orderAmount(a);
+    if (sortBy === 'date_asc') return new Date(a.created_at) - new Date(b.created_at);
+    return new Date(b.created_at) - new Date(a.created_at);
   });
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentOrders = filteredOrders.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+  const currentOrders = sortedOrders.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  const exportOrdersCsv = () => {
+    const headers = ['sub_order_id', 'parent_order_id', 'customer_id', 'status', 'amount', 'currency', 'created_at'];
+    const rows = sortedOrders.map((order) => ({
+      sub_order_id: order.id,
+      parent_order_id: order.parent_order_id,
+      customer_id: order.user_id,
+      status: order.status,
+      amount: orderAmount(order),
+      currency: order.currency || 'UGX',
+      created_at: order.created_at,
+    }));
+    const csvRows = [
+      headers.join(','),
+      ...rows.map((row) =>
+        headers
+          .map((h) => {
+            const value = row[h] ?? '';
+            return `"${String(value).replace(/"/g, '""')}"`;
+          })
+          .join(',')
+      ),
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.setAttribute('download', 'business-orders.csv');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const totalRevenue = filteredOrders
     .filter((o) => ['PAID', 'FULFILLED', 'DELIVERED'].includes(o.status))
@@ -130,12 +311,18 @@ const Orders = () => {
       setSelectedOrder((prev) => (prev ? { ...prev, status } : prev));
       refetch();
     } catch (err) {
-      alertError('Status update failed', err.response?.data?.detail || 'Please try again.');
+      const detail = err.response?.data?.detail || 'Please try again.';
+      if (String(detail).toLowerCase().includes('funding not yet received by pochi')) {
+        alertError('Funding Not Received', 'This Pay Later order can only be fulfilled or delivered after funding is received by Pochi.');
+      } else {
+        alertError('Status update failed', detail);
+      }
     }
   };
 
-  const canMarkFulfilled = selectedOrder?.status === 'PAID';
-  const canMarkDelivered = selectedOrder?.status === 'FULFILLED';
+  const releaseBlocked = !!(selectedOrder?.is_pay_later && !selectedOrder?.funding_received);
+  const canMarkFulfilled = selectedOrder?.status === 'PAID' && !releaseBlocked;
+  const canMarkDelivered = selectedOrder?.status === 'FULFILLED' && !releaseBlocked;
 
   return (
     <div className="orders-container animate-fade">
@@ -191,9 +378,57 @@ const Orders = () => {
             <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }} />
           </div>
           {(startDate || endDate || searchTerm) && (
-            <button className="clear-filters-btn" onClick={() => { setStartDate(''); setEndDate(''); setSearchTerm(''); }}>Reset</button>
+            <button className="clear-filters-btn" onClick={() => { setStartDate(''); setEndDate(''); setSearchTerm(''); setStatusFilter('ALL'); }}>Reset</button>
           )}
+          <select className="orders-select-filter" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}>
+            <option value="ALL">All statuses</option>
+            <option value="PENDING">Pending</option>
+            <option value="PAID">Paid</option>
+            <option value="FULFILLED">Fulfilled</option>
+            <option value="DELIVERED">Delivered</option>
+            <option value="CANCELLED">Cancelled</option>
+            <option value="REFUNDED">Refunded</option>
+          </select>
+          <select className="orders-select-filter" value={sortBy} onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}>
+            <option value="date_desc">Newest first</option>
+            <option value="date_asc">Oldest first</option>
+            <option value="amount_desc">Amount high-low</option>
+            <option value="amount_asc">Amount low-high</option>
+          </select>
+          <button className="orders-export-btn" onClick={exportOrdersCsv}>
+            <Download size={14} /> Export CSV
+          </button>
         </div>
+      </div>
+
+      <div className="orders-saved-views">
+        <button
+          className={`orders-view-chip ${activeViewId === 'default' ? 'active' : ''}`}
+          onClick={() =>
+            applyViewFilters(
+              { searchTerm: '', startDate: '', endDate: '', statusFilter: 'ALL', sortBy: 'date_desc' },
+              'default'
+            )
+          }
+        >
+          Default
+        </button>
+        {presetViews.map((view) => (
+          <button
+            key={view.id}
+            className={`orders-view-chip ${activeViewId === view.id ? 'active' : ''}`}
+            onClick={() => applyViewFilters(view.filters, view.id)}
+          >
+            {view.name}
+          </button>
+        ))}
+        {savedViews.map((view) => (
+          <div key={view.id} className={`orders-view-chip custom ${activeViewId === view.id ? 'active' : ''}`}>
+            <button onClick={() => applyViewFilters(view.filters, view.id)}>{view.name}</button>
+            <button className="orders-view-remove" onClick={() => removeSavedView(view.id)}>×</button>
+          </div>
+        ))}
+        <button className="orders-save-view-btn" onClick={saveCurrentView}>Save current view</button>
       </div>
 
       <div className="orders-table-wrapper glass animate-fade">
@@ -253,7 +488,7 @@ const Orders = () => {
 
         {totalPages > 1 && (
           <div className="pagination-bar">
-            <div className="pagination-info">Showing {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredOrders.length)} of {filteredOrders.length}</div>
+            <div className="pagination-info">Showing {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, sortedOrders.length)} of {sortedOrders.length}</div>
             <div className="pagination-btns">
               <button disabled={currentPage === 1} onClick={() => paginate(currentPage - 1)} className="p-btn"><ChevronLeft size={18} /></button>
               {[...Array(totalPages)].map((_, i) => (
@@ -309,6 +544,31 @@ const Orders = () => {
                       <span className="val">{selectedOrder.user_id}</span>
                     </div>
                     <div className="info-item">
+                      <label>Fulfillment</label>
+                      <span className="val">{selectedOrder.pickup_from_store ? 'Store pickup' : 'Delivery'}</span>
+                    </div>
+                    <div className="info-item">
+                      <label>Pay Later Funding</label>
+                      {selectedOrder.is_pay_later ? (
+                        <span className={`paylater-gate-chip ${selectedOrder.funding_received ? 'ok' : 'blocked'}`}>
+                          {selectedOrder.funding_received ? 'Funding received' : 'Waiting for funding'}
+                        </span>
+                      ) : (
+                        <span className="val">Not a Pay Later order</span>
+                      )}
+                    </div>
+                    {selectedOrder.is_pay_later && !selectedOrder.funding_received && (
+                      <div className="info-item" style={{ gridColumn: '1 / -1' }}>
+                        <label>Release block reason</label>
+                        <span className="paylater-gate-reason">
+                          <AlertTriangle size={13} />
+                          {selectedOrder.release_block_reason || `Funding pending on ${selectedOrder.pending_loan_count || 0} financing request(s).`}
+                        </span>
+                      </div>
+                    )}
+                    {!selectedOrder.pickup_from_store ? (
+                      <>
+                    <div className="info-item">
                       <label>Receiver name</label>
                       <span className="val">{selectedOrder.receiver_name || '—'}</span>
                     </div>
@@ -320,6 +580,19 @@ const Orders = () => {
                       <label>Delivery address</label>
                       <span className="val">{selectedOrder.delivery_address || '—'}</span>
                     </div>
+                      </>
+                    ) : (selectedOrder.receiver_name || selectedOrder.receiver_phone) ? (
+                      <>
+                    <div className="info-item">
+                      <label>Contact name</label>
+                      <span className="val">{selectedOrder.receiver_name || '—'}</span>
+                    </div>
+                    <div className="info-item">
+                      <label>Contact phone</label>
+                      <span className="val">{selectedOrder.receiver_phone || '—'}</span>
+                    </div>
+                      </>
+                    ) : null}
                   </div>
                 </div>
 
@@ -412,6 +685,12 @@ const Orders = () => {
                         </button>
                       )}
                     </div>
+                  </div>
+                )}
+                {selectedOrder?.is_pay_later && releaseBlocked && (
+                  <div className="details-section glass paylater-gate-panel">
+                    <div className="section-title"><AlertTriangle size={16} /> Fulfillment Blocked</div>
+                    <p>You cannot mark this order as fulfilled or delivered until Pay Later funding is received by Pochi.</p>
                   </div>
                 )}
               </div>

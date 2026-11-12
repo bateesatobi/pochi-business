@@ -90,7 +90,7 @@ const LoginPage = () => {
             <div className="form-input-group">
               <div className="label-row">
                 <label>Password</label>
-                <Link to="/forgot-password">Forgot PIN?</Link>
+                <Link to="/forgot-password">Forgot password?</Link>
               </div>
               <div className="input-wrapper">
                 <Lock className="input-icon" size={18} />

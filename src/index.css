@@ -27,12 +27,32 @@
     box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
 body {
     font-family: 'Outfit', sans-serif;
     background-color: var(--bg-main);
     color: var(--text-main);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+}
+
+img,
+video,
+canvas,
+svg {
+    max-width: 100%;
+    height: auto;
+}
+
+table {
+    max-width: 100%;
 }
 
 .glass {
@@ -85,7 +105,7 @@ input:focus {
 /* Global Stat Card Design System */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
     gap: 24px;
     margin-bottom: 40px;
 }
@@ -516,5 +536,86 @@ input:focus {
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+/* Shared page header helpers */
+.page-header,
+.page-header-refined {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.page-header h1,
+.page-header-refined h1 {
+    word-break: break-word;
+}
+
+/* Global responsive refinements */
+@media (max-width: 900px) {
+    .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+
+    .stat-card {
+        padding: 16px 18px;
+    }
+
+    .stat-info .val,
+    .stat-info h2 {
+        font-size: 18px;
+    }
+
+    .form-card {
+        padding: 22px;
+        border-radius: 18px;
+    }
+
+    .drawer-nav,
+    .drawer-main,
+    .drawer-footer {
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+
+    .drawer-footer {
+        flex-wrap: wrap;
+    }
+
+    .btn-primary-expert,
+    .btn-secondary-expert {
+        width: 100%;
+    }
+
+    .expert-drawer {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 560px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .page-header,
+    .page-header-refined {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .page-header .header-actions,
+    .page-header-refined .header-actions {
+        width: 100%;
+    }
+
+    .page-header .header-actions > *,
+    .page-header-refined .header-actions > * {
+        width: 100%;
+        justify-content: center;
     }
 }

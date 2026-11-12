@@ -342,3 +342,28 @@
     border-color: rgba(79, 70, 229, 0.15);
 }
 
+
+@media (max-width: 720px) {
+  .categories-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .btn-add-category {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .inventory-controls {
+    align-items: stretch;
+  }
+
+  .cat-count-label {
+    margin-left: 0;
+  }
+
+  .category-modal {
+    max-width: calc(100vw - 24px);
+    width: 100%;
+    margin: 12px;
+  }
+}

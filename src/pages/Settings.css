@@ -333,3 +333,18 @@
         transform: rotate(360deg);
     }
 }
+
+@media (max-width: 560px) {
+  .settings-grid-refined {
+    grid-template-columns: 1fr;
+  }
+
+  .span-full-card {
+    grid-column: span 1;
+  }
+
+  .settings-card,
+  .settings-grid-refined .settings-card {
+    grid-column: span 1;
+  }
+}

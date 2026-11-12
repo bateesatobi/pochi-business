@@ -1914,3 +1914,20 @@
     margin-left: auto;
   }
 }
+
+@media (max-width: 900px) {
+  .products-grid,
+  .inventory-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  }
+
+  .expert-drawer {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .products-grid {
+    grid-template-columns: 1fr;
+  }
+}

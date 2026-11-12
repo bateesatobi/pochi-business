@@ -283,3 +283,43 @@
     margin: 0;
     line-height: 1.5;
 }
+
+@media (max-width: 900px) {
+  .analytics-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .insights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .data-card {
+    padding: 20px;
+  }
+
+  .insight-metric {
+    font-size: 26px;
+  }
+
+  .page-header h1 {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 560px) {
+  .action-card {
+    padding: 16px;
+  }
+
+  .insight-card {
+    padding: 18px;
+  }
+
+  .prod-item {
+    gap: 10px;
+  }
+}

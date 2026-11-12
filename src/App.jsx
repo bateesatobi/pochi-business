@@ -9,6 +9,7 @@ import Settings from './pages/Settings';
 import KYCPage from './pages/KYCPage';
 import RegistrationPage from './pages/RegistrationPage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import LegalDocumentPage from './pages/LegalDocumentPage';
 import CategoriesPage from './pages/CategoriesPage';
 import NotificationsPage from './pages/NotificationsPage';
@@ -87,6 +88,7 @@ function App() {
         <CacheSync />
         <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/register" element={<RegistrationPage />} />
             <Route path="/terms" element={<LegalDocumentPage />} />
             <Route path="/privacy" element={<LegalDocumentPage />} />

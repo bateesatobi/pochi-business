@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   CreditCard, ArrowDownCircle, ArrowUpCircle, Clock, CheckCircle2,
-  XCircle, Smartphone, ChevronDown, RefreshCw, Loader2, Plus, Save
+  XCircle, Smartphone, RefreshCw, Loader2, Plus, Save, Search, Download, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
@@ -17,6 +17,8 @@ import './Payments.css';
 
 const fmt = (n, currency = 'UGX') => formatMoney(n, currency);
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const PAGE_SIZE = 12;
+const normalize = (v) => (v ?? '').toString().toLowerCase().trim();
 
 const STATUS_CONFIG = {
   COMPLETED: { label: 'Completed', icon: CheckCircle2, cls: 'status-completed' },
@@ -41,11 +43,28 @@ const Payments = () => {
   const [provider, setProvider] = useState('MTN');
   const [accName, setAccName] = useState('');
   const [editPayout, setEditPayout] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(new Date());
+
+  const [txPage, setTxPage] = useState(1);
+  const [disPage, setDisPage] = useState(1);
+  const [txSearch, setTxSearch] = useState('');
+  const [disSearch, setDisSearch] = useState('');
+  const [txStatus, setTxStatus] = useState('ALL');
+  const [disStatus, setDisStatus] = useState('ALL');
+  const [txSort, setTxSort] = useState({ key: 'created_at', direction: 'desc' });
+  const [disSort, setDisSort] = useState({ key: 'created_at', direction: 'desc' });
 
   const loading = summaryLoading && !summary;
 
-  const refreshPayments = () =>
-    queryClient.invalidateQueries({ queryKey: ['payments'] });
+  const refreshPayments = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['payments'] }),
+    [queryClient]
+  );
+
+  const handleRefresh = async () => {
+    await refreshPayments();
+    setLastRefreshedAt(new Date());
+  };
 
   useEffect(() => {
     if (payoutAccount) {
@@ -54,6 +73,14 @@ const Payments = () => {
       setAccName(payoutAccount.account_name || '');
     }
   }, [payoutAccount]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refreshPayments();
+      setLastRefreshedAt(new Date());
+    }, 45000);
+    return () => clearInterval(timer);
+  }, [refreshPayments]);
 
   const savePayoutAccount = async (e) => {
     e.preventDefault();
@@ -80,6 +107,175 @@ const Payments = () => {
 
   const providerColors = { MTN: '#ffcc00', AIRTEL: '#ff0000', MPESA: '#4caf50' };
 
+  const sortArrow = (sortState, key) => (
+    sortState.key !== key ? '↕' : sortState.direction === 'asc' ? '↑' : '↓'
+  );
+
+  const toggleSort = (state, setState, key) => {
+    setState((prev) => {
+      if (prev.key !== key) return { key, direction: 'asc' };
+      return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+    });
+  };
+
+  const filteredTransactions = useMemo(() => {
+    const q = normalize(txSearch);
+    return transactions.filter((tx) => {
+      const statusPass = txStatus === 'ALL' || tx.status === txStatus;
+      const searchPass = !q || normalize([
+        tx.internal_reference,
+        tx.phone_number,
+        tx.status,
+        tx.yo_transaction_id,
+      ].join(' ')).includes(q);
+      return statusPass && searchPass;
+    });
+  }, [transactions, txSearch, txStatus]);
+
+  const filteredDisbursements = useMemo(() => {
+    const q = normalize(disSearch);
+    return disbursements.filter((d) => {
+      const statusPass = disStatus === 'ALL' || d.status === disStatus;
+      const searchPass = !q || normalize([
+        d.internal_reference,
+        d.phone_number,
+        d.provider,
+        d.status,
+      ].join(' ')).includes(q);
+      return statusPass && searchPass;
+    });
+  }, [disbursements, disSearch, disStatus]);
+
+  const txSortValue = (row, key) => {
+    if (key === 'amount') return Number(row.amount || 0);
+    if (key === 'created_at') return new Date(row.created_at || 0).getTime();
+    return normalize(row[key]);
+  };
+
+  const disSortValue = (row, key) => {
+    if (key === 'gross_amount' || key === 'platform_fee' || key === 'net_amount') return Number(row[key] || 0);
+    if (key === 'created_at') return new Date(row.created_at || 0).getTime();
+    return normalize(row[key]);
+  };
+
+  const sortedTransactions = useMemo(() => {
+    const rows = [...filteredTransactions];
+    rows.sort((a, b) => {
+      const av = txSortValue(a, txSort.key);
+      const bv = txSortValue(b, txSort.key);
+      const cmp = av > bv ? 1 : av < bv ? -1 : 0;
+      return txSort.direction === 'asc' ? cmp : -cmp;
+    });
+    return rows;
+  }, [filteredTransactions, txSort]);
+
+  const sortedDisbursements = useMemo(() => {
+    const rows = [...filteredDisbursements];
+    rows.sort((a, b) => {
+      const av = disSortValue(a, disSort.key);
+      const bv = disSortValue(b, disSort.key);
+      const cmp = av > bv ? 1 : av < bv ? -1 : 0;
+      return disSort.direction === 'asc' ? cmp : -cmp;
+    });
+    return rows;
+  }, [filteredDisbursements, disSort]);
+
+  useEffect(() => setTxPage(1), [tab, txSearch, txStatus]);
+  useEffect(() => setDisPage(1), [tab, disSearch, disStatus]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(sortedTransactions.length / PAGE_SIZE));
+    if (txPage > maxPage) setTxPage(maxPage);
+  }, [sortedTransactions.length, txPage]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(sortedDisbursements.length / PAGE_SIZE));
+    if (disPage > maxPage) setDisPage(maxPage);
+  }, [sortedDisbursements.length, disPage]);
+
+  const txTotalPages = Math.max(1, Math.ceil(sortedTransactions.length / PAGE_SIZE));
+  const disTotalPages = Math.max(1, Math.ceil(sortedDisbursements.length / PAGE_SIZE));
+  const txStart = (txPage - 1) * PAGE_SIZE;
+  const disStart = (disPage - 1) * PAGE_SIZE;
+  const txRows = sortedTransactions.slice(txStart, txStart + PAGE_SIZE);
+  const disRows = sortedDisbursements.slice(disStart, disStart + PAGE_SIZE);
+
+  const downloadCsv = (filename, headers, rows) => {
+    const csvRows = [
+      headers.join(','),
+      ...rows.map((row) => headers.map((h) => {
+        const value = row[h] ?? '';
+        const clean = String(value).replace(/"/g, '""');
+        return `"${clean}"`;
+      }).join(',')),
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.setAttribute('download', filename);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportTransactionsCsv = () => {
+    downloadCsv(
+      'payment-transactions.csv',
+      ['reference', 'phone', 'amount', 'status', 'yo_ref', 'date'],
+      sortedTransactions.map((tx) => ({
+        reference: tx.internal_reference,
+        phone: tx.phone_number,
+        amount: tx.amount,
+        status: tx.status,
+        yo_ref: tx.yo_transaction_id || '',
+        date: tx.created_at,
+      }))
+    );
+  };
+
+  const exportDisbursementsCsv = () => {
+    downloadCsv(
+      'disbursements-received.csv',
+      ['reference', 'gross_amount', 'platform_fee', 'net_amount', 'phone', 'provider', 'status', 'date'],
+      sortedDisbursements.map((d) => ({
+        reference: d.internal_reference,
+        gross_amount: d.gross_amount,
+        platform_fee: d.platform_fee,
+        net_amount: d.net_amount,
+        phone: d.phone_number,
+        provider: d.provider,
+        status: d.status,
+        date: d.created_at,
+      }))
+    );
+  };
+
+  const renderPager = (page, totalPages, onPageChange, totalRows, start) => {
+    if (totalRows <= PAGE_SIZE) return null;
+    return (
+      <div className="pay-pagination">
+        <div className="pay-pagination-info">
+          Showing {start + 1}-{Math.min(start + PAGE_SIZE, totalRows)} of {totalRows}
+        </div>
+        <div className="pay-pagination-btns">
+          <button disabled={page === 1} onClick={() => onPageChange(page - 1)} className="pay-page-btn"><ChevronLeft size={16} /></button>
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <button
+              key={i + 1}
+              onClick={() => onPageChange(i + 1)}
+              className={`pay-page-btn ${page === i + 1 ? 'active' : ''}`}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <button disabled={page === totalPages} onClick={() => onPageChange(page + 1)} className="pay-page-btn"><ChevronRight size={16} /></button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="payments-page animate-fade">
       {/* Header */}
@@ -87,8 +283,11 @@ const Payments = () => {
         <div>
           <h1>Payments & Payouts</h1>
           <p>Track your earnings, payment transactions, and disbursement history.</p>
+          <div className="pay-refresh-meta">
+            Auto-refresh every 45s · Last updated {lastRefreshedAt.toLocaleTimeString()}
+          </div>
         </div>
-        <button className="btn-refresh" onClick={refreshPayments} disabled={loading}>
+        <button className="btn-refresh" onClick={handleRefresh} disabled={loading}>
           {loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />} Refresh
         </button>
       </div>
@@ -219,19 +418,46 @@ const Payments = () => {
           </div>
         ) : (
           <div className="pay-table-wrapper glass">
+            <div className="pay-table-tools">
+              <div className="pay-search-wrap">
+                <Search size={16} />
+                <input
+                  className="pay-search-input"
+                  type="search"
+                  placeholder="Search reference, phone, status, YO ref..."
+                  value={txSearch}
+                  onChange={(e) => setTxSearch(e.target.value)}
+                />
+              </div>
+              <div className="pay-tools-right">
+                <select className="pay-filter-select" value={txStatus} onChange={(e) => setTxStatus(e.target.value)}>
+                  <option value="ALL">All statuses</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="FAILED">Failed</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+                <button className="pay-export-btn" onClick={exportTransactionsCsv}>
+                  <Download size={15} /> Export CSV
+                </button>
+              </div>
+            </div>
             <table className="pay-table">
               <thead>
                 <tr>
-                  <th>Reference</th>
-                  <th>Phone</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>YO! Ref</th>
-                  <th>Date</th>
+                  <th><button className={`pay-sort-head ${txSort.key === 'internal_reference' ? 'active' : ''}`} onClick={() => toggleSort(txSort, setTxSort, 'internal_reference')}>Reference {sortArrow(txSort, 'internal_reference')}</button></th>
+                  <th><button className={`pay-sort-head ${txSort.key === 'phone_number' ? 'active' : ''}`} onClick={() => toggleSort(txSort, setTxSort, 'phone_number')}>Phone {sortArrow(txSort, 'phone_number')}</button></th>
+                  <th><button className={`pay-sort-head ${txSort.key === 'amount' ? 'active' : ''}`} onClick={() => toggleSort(txSort, setTxSort, 'amount')}>Amount {sortArrow(txSort, 'amount')}</button></th>
+                  <th><button className={`pay-sort-head ${txSort.key === 'status' ? 'active' : ''}`} onClick={() => toggleSort(txSort, setTxSort, 'status')}>Status {sortArrow(txSort, 'status')}</button></th>
+                  <th><button className={`pay-sort-head ${txSort.key === 'yo_transaction_id' ? 'active' : ''}`} onClick={() => toggleSort(txSort, setTxSort, 'yo_transaction_id')}>YO! Ref {sortArrow(txSort, 'yo_transaction_id')}</button></th>
+                  <th><button className={`pay-sort-head ${txSort.key === 'created_at' ? 'active' : ''}`} onClick={() => toggleSort(txSort, setTxSort, 'created_at')}>Date {sortArrow(txSort, 'created_at')}</button></th>
                 </tr>
               </thead>
               <tbody>
-                {transactions.map(tx => {
+                {txRows.length === 0 && (
+                  <tr><td colSpan={6} className="pay-empty-row">No transactions match your filters.</td></tr>
+                )}
+                {txRows.map(tx => {
                   const cfg = STATUS_CONFIG[tx.status] || STATUS_CONFIG.PENDING;
                   const Icon = cfg.icon;
                   return (
@@ -247,6 +473,7 @@ const Payments = () => {
                 })}
               </tbody>
             </table>
+            {renderPager(txPage, txTotalPages, setTxPage, sortedTransactions.length, txStart)}
           </div>
         )
       )}
@@ -263,21 +490,48 @@ const Payments = () => {
           </div>
         ) : (
           <div className="pay-table-wrapper glass">
+            <div className="pay-table-tools">
+              <div className="pay-search-wrap">
+                <Search size={16} />
+                <input
+                  className="pay-search-input"
+                  type="search"
+                  placeholder="Search reference, phone, provider, status..."
+                  value={disSearch}
+                  onChange={(e) => setDisSearch(e.target.value)}
+                />
+              </div>
+              <div className="pay-tools-right">
+                <select className="pay-filter-select" value={disStatus} onChange={(e) => setDisStatus(e.target.value)}>
+                  <option value="ALL">All statuses</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="FAILED">Failed</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+                <button className="pay-export-btn" onClick={exportDisbursementsCsv}>
+                  <Download size={15} /> Export CSV
+                </button>
+              </div>
+            </div>
             <table className="pay-table">
               <thead>
                 <tr>
-                  <th>Reference</th>
-                  <th>Gross Amount</th>
-                  <th>Platform Fee ({platformFeeLabel})</th>
-                  <th>Net Paid To You</th>
-                  <th>Phone</th>
-                  <th>Provider</th>
-                  <th>Status</th>
-                  <th>Date</th>
+                  <th><button className={`pay-sort-head ${disSort.key === 'internal_reference' ? 'active' : ''}`} onClick={() => toggleSort(disSort, setDisSort, 'internal_reference')}>Reference {sortArrow(disSort, 'internal_reference')}</button></th>
+                  <th><button className={`pay-sort-head ${disSort.key === 'gross_amount' ? 'active' : ''}`} onClick={() => toggleSort(disSort, setDisSort, 'gross_amount')}>Gross Amount {sortArrow(disSort, 'gross_amount')}</button></th>
+                  <th><button className={`pay-sort-head ${disSort.key === 'platform_fee' ? 'active' : ''}`} onClick={() => toggleSort(disSort, setDisSort, 'platform_fee')}>Platform Fee ({platformFeeLabel}) {sortArrow(disSort, 'platform_fee')}</button></th>
+                  <th><button className={`pay-sort-head ${disSort.key === 'net_amount' ? 'active' : ''}`} onClick={() => toggleSort(disSort, setDisSort, 'net_amount')}>Net Paid To You {sortArrow(disSort, 'net_amount')}</button></th>
+                  <th><button className={`pay-sort-head ${disSort.key === 'phone_number' ? 'active' : ''}`} onClick={() => toggleSort(disSort, setDisSort, 'phone_number')}>Phone {sortArrow(disSort, 'phone_number')}</button></th>
+                  <th><button className={`pay-sort-head ${disSort.key === 'provider' ? 'active' : ''}`} onClick={() => toggleSort(disSort, setDisSort, 'provider')}>Provider {sortArrow(disSort, 'provider')}</button></th>
+                  <th><button className={`pay-sort-head ${disSort.key === 'status' ? 'active' : ''}`} onClick={() => toggleSort(disSort, setDisSort, 'status')}>Status {sortArrow(disSort, 'status')}</button></th>
+                  <th><button className={`pay-sort-head ${disSort.key === 'created_at' ? 'active' : ''}`} onClick={() => toggleSort(disSort, setDisSort, 'created_at')}>Date {sortArrow(disSort, 'created_at')}</button></th>
                 </tr>
               </thead>
               <tbody>
-                {disbursements.map(d => {
+                {disRows.length === 0 && (
+                  <tr><td colSpan={8} className="pay-empty-row">No disbursements match your filters.</td></tr>
+                )}
+                {disRows.map(d => {
                   const cfg = STATUS_CONFIG[d.status] || STATUS_CONFIG.PENDING;
                   const Icon = cfg.icon;
                   return (
@@ -295,6 +549,7 @@ const Payments = () => {
                 })}
               </tbody>
             </table>
+            {renderPager(disPage, disTotalPages, setDisPage, sortedDisbursements.length, disStart)}
           </div>
         )
       )}

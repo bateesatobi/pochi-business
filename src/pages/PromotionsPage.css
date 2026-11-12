@@ -598,3 +598,18 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 560px) {
+  .promo-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .promo-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .promotions-container .header-actions button,
+  .promotions-container .header-actions .btn-add-category {
+    width: 100%;
+  }
+}
